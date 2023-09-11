@@ -1,2 +1,2 @@
 # issue-tracker-backend
-An issue tracker
+An issue tracker LOL
