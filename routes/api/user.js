@@ -136,7 +136,7 @@ router.put('/:userId', (req, res) => {
     res.status(404).json({ error: `User #${req.params.userId} not found.`});
   }
 });
-    
+
 router.delete('/:userId', (req, res) => {
   //FIXME: delete user and send response as JSON
   let idFound = false;
