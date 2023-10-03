@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import { userRouter } from './routes/api/user.js';
 import { bugRouter } from './routes/api/bug.js';
+import {ping, connect, newId} from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

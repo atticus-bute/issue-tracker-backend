@@ -9,10 +9,6 @@ import { nanoid } from 'nanoid';
 
 router.use(express.urlencoded({ extended: false }));
 
-const bugsArray = [
-  {title:'example', description:'lorem ipsum...', stepsToReproduce:'lorem ipsum...', bugId:1, creationTime:Date()}
-];
-
 router.get('/list', (req, res) => {
   debugBug('bug list route hit');
   res.json(bugsArray);

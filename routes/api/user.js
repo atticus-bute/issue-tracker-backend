@@ -5,154 +5,120 @@ import debug from 'debug';
 const debugUser = debug('app:UserRouter');
 
 import { nanoid } from 'nanoid';
+import bcrypt from 'bcrypt';
+import { getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser } from '../../database.js';
+import e from 'express';
+import { ObjectId } from 'mongodb';
 
 router.use(express.urlencoded({ extended: false }));
 
 //FIXME: use this array to store user data in for now
 //we will replace this with a database in a later assignment
-const usersArray = [
-  { email: 'jagbra@mail.com', password: 'crss', fullName: 'Atticus Bute', givenName:'Atticus', familyName: 'Bute', role:'Admin', userId: 1, creationTime: Date() },
-  { email: 'eagud@mail.com', password: 'eagud', fullName: 'Evan Gudmestad', givenName:'Evan', familyName: 'Gudmestad', role:'Admin', userId: nanoid(), creationTime: Date() },
-  { email: 'metroandroid@mail.com', password: 'morphball', fullName: 'Samus Aran', givenName:'Samus', familyName: 'Aran', role:'User', userId: nanoid(), creationTime: Date() },
-  { email: 'vector@mail.com', password: 'yeshallbeasgods', fullName: 'Shion Uzuki', givenName:'Shion', familyName: 'Uzuki', role:'User', userId: nanoid(), creationTime: Date() },
-  { email: 'halberd@mail.com', password: 'galaxia', fullName: 'Meta Knight', givenName:'Meta', familyName: 'Knight', role:'User', userId: nanoid(), creationTime: Date() }
-];
 
-router.get('/list', (req, res) => {
-  debugUser('getting all users');
-  res.status(200).json(usersArray);
-});
-
-router.get('/:userId', (req, res) => {
-  debugUser('getting user by id');
-  //reads the userId from the URL and stores it in a variable
-  const userId = req.params.userId;
-  //get the user from usersArray and send response as JSON
-  const user = usersArray.find((user) => user.userId == userId);
-  if (user) {
-    res.status(200).json(user);
-  } else {
-    res.status(404).json({ error: `Sorry, couldn't find user with id ${userId}` });
+router.get('/list', async(req, res) => {
+  debugUser('Getting all users');
+  try{
+    const users = await getUsers();
+    res.status(200).json(users);
+  } catch (err) {
+    debugUser('.get failed');
+    res.status(500).json({error: err});
   }
 });
 
-router.post('/register', (req, res) => {
+router.get('/:userId', async (req, res) => {
+  debugUser('Getting user by id');
+  const id = req.params.userId;
+  try{
+    const user = await getUserById(id);
+    if (user) {
+      debugUser('User found');
+      res.status(200).json(user);
+    } else {
+      debugUser('User not found');
+      res.status(404).json({ error: `User id #${id} not found` });
+    }
+  } catch (err) {
+    debugUser('.get failed');
+    res.status(500).json({error: err});
+  }
+});
+
+router.post('/register', async (req, res) => {
   //FIXME: register new user and send response as JSON
   const newUser = req.body;
-  let validEmail = true;
-  if (newUser.email && newUser.password && newUser.fullName && newUser.givenName && newUser.familyName && newUser.role) {
-    for (const user of usersArray) {
-      let i = 0;
-      if (user.email == newUser.email) {
-        validEmail = false;
-        res.status(400).json({ error: 'Email already registered' });
-        break;
-      }
-      i++;
-    }
-    if (validEmail) {
-      newUser.userId = nanoid();
-      newUser.creationTime = Date();
-      usersArray.push(newUser);
-      res.status(200).json({message: `New user ${newUser.fullName} registered!`});
-    }
+  newUser.password = await bcrypt.hash(newUser.password, 10);
+try {
+  debugUser('Try block hit');
+  const dbResult = await registerUser(newUser);
+  debugUser('dbResult created');
+  if(dbResult.acknowledged == true){
+    debugUser('User registered')
+    res.status(200).json({message:`User ${newUser._id} was added`});
   } else {
-    if (!newUser.email) {
-      res.status(400).json({ error: 'Please enter an email' });
-    }
-    if (!newUser.password) {
-      res.status(400).json({ error: 'Please enter a password' });
-    }
-    if (!newUser.fullName) {
-      res.status(400).json({ error: 'Please enter your full name' });
-    }
-    if (!newUser.givenName) {
-      res.status(400).json({ error: 'Please enter your given name' });
-    }
-    if (!newUser.familyName) {
-      res.status(400).json({ error: 'Please enter your family name' });
-    }
-    if (!newUser.role) {
-      res.status(400).json({ error: 'Please enter your role' });
-    }
+    debugUser(dbResult);
+    res.status(400).json({message:dbResult});
   }
+} catch (err) {
+  debugUser('.post failed');
+  res.status(500).json({error: err});
+}
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   //FIXME: check user's email and password and send response as JSON
   const loginAttempt = req.body;
-  if(loginAttempt.email && loginAttempt.password) {
-    let toLogin;
-    let validLogin = false;
-    for (const user of usersArray) {
-      if (user.email == loginAttempt.email && user.password == loginAttempt.password) {
-        toLogin = user;
-        res.status(200).json({message: `Welcome back ${toLogin.fullName}!`});
-        validLogin = true;
-        break;
-      }
+  debugUser(loginAttempt);
+  try{
+    debugUser('Try block hit');
+    const dbResult = await loginUser(loginAttempt);
+    if(dbResult){
+      debugUser(`User ${dbResult.fullName} logged in`)
+      res.status(200).json({message:`User ${dbResult._id} was logged in`});
+    } else {
+      debugUser(dbResult);
+      res.status(400).json({message:'Invalid email or password'});
     }
-    if (!validLogin) {
-      res.status(404).json({ error: 'Invalid email or password. Please try again.' });
-    }
-  } else {
-    res.status(400).json({ error: 'Please enter an email and password.' });
+  } catch (err) {
+    debugUser('.post failed');
+    res.status(500).json({error: err});
   }
 });
 
-router.put('/:userId', (req, res) => {
+router.put('/:userId', async (req, res) => {
   //FIXME: update existing user and send response as JSON
-  let idFound = false;
-  let toUpdate;
-  for (const user of usersArray) {
-    if (user.userId == req.params.userId) {
-      toUpdate = user;
-      idFound = true;
-      break;
-    }
-  }
-  if (idFound) {
-    if (req.body.email) {
-      toUpdate.email = req.body.email;
-    }
-    if (req.body.password) {
-      toUpdate.password = req.body.password;
-    }
-    if (req.body.fullName) {
-      toUpdate.fullName = req.body.fullName;
-    }
-    if (req.body.givenName) {
-      toUpdate.givenName = req.body.givenName;
-    }
-    if (req.body.familyName) {
-      toUpdate.familyName = req.body.familyName;
-    }
-    if (req.body.role) {
-      toUpdate.role = req.body.role;
-    }
-    toUpdate.lastUpdated = Date();
-    res.status(200).json({message: `User ${toUpdate.fullName} updated!`});
-  } else {
-    res.status(404).json({ error: `User #${req.params.userId} not found.`});
+  const id = req.params.userId;
+  const updatedUser = req.body;
+  try {
+    debugUser('Try block hit');
+    const dbResult = await updateUser(id, updatedUser);
+    if(dbResult.modifiedCount == 1){
+      debugUser('User updated');
+      res.status(200).json({message:`User ${id} was updated`});
+      } else {
+        debugUser('User not updated');
+        res.status(400).json({message:`Unable to update user ${id}`});
+      }
+  } catch (err) {
+    debugUser(`User ${id} not found`);
+    res.status(500).json({error: `User ${id} not found`});
   }
 });
 
-router.delete('/:userId', (req, res) => {
-  //FIXME: delete user and send response as JSON
-  let idFound = false;
-  let toDelete;
-  for (const user of usersArray) {
-    if (user.userId == req.params.userId) {
-      toDelete = user;
-      idFound = true;
-      break;
+router.delete('/:userId', async (req, res) => {
+  const id = req.params.userId;
+  try{
+    const dbResult = await deleteUser(id);
+    if(dbResult.deletedCount == 1){
+      debugUser('User deleted');
+      res.status(200).json({message:`User ${id} was deleted`});
+    } else {
+      debugUser('User not deleted');
+      res.status(400).json({message:`Unable to delete user ${id}`});
     }
-  }
-  if (!idFound) {
-  res.json({ error: `User #${req.params.userId} not found.` });
-  } else {
-    usersArray.splice(usersArray.indexOf(toDelete), 1);
-    res.status(200).json({message: `User ${toDelete.fullName} deleted!`});
+  } catch(err) {
+    debugUser(`User ${id} not found`);
+    res.status(500).json({error: `User ${id} not found`});
   }
 });
 
