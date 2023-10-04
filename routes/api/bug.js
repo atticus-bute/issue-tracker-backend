@@ -5,141 +5,132 @@ import debug from 'debug';
 import e from 'express';
 const debugBug = debug('app:BugRouter');
 
+import { getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug } from '../../database.js';
 import { nanoid } from 'nanoid';
 
 router.use(express.urlencoded({ extended: false }));
 
-router.get('/list', (req, res) => {
-  debugBug('bug list route hit');
-  res.json(bugsArray);
-});
-
-router.get('/:bugId', (req, res) => {
-  const bugId = req.params.bugId;
-  const bug = bugsArray.find((bug) => bug.bugId == bugId);
-  //FIXME: get bug from bugsArray and send response as JSON
-  if (bug) {
-    res.status(200).json(bug);
-  } else {
-    res.status(404).json({ error: `Bug id #${bugId} not found` });
+router.get('/list', async (req, res) => {
+  try {
+    const bugs = await getBugs();
+    res.status(200).json(bugs);
+  } catch (err) {
+    debugBug('.get failed');
+    res.status(500).json({ error: 'Bugs not found' });
   }
 });
 
-router.post('/new', (req, res) => {
+router.get('/:bugId', async (req, res) => {
+  const bugId = req.params.bugId;
+  try{
+    const bug = await getBugById(bugId);
+    if (bug) {
+      debugBug('Bug found');
+      res.status(200).json(bug);
+    } else {
+      debugBug('Bug not found');
+      res.status(404).json({ error: `Bug id #${bugId} not found` });
+    }
+  } catch (err) {
+    debugBug('.get failed');
+    res.status(500).json({ error: `Bug id #${bugId} not found` });
+  }
+});
+
+router.post('/new', async (req, res) => {
   //FIXME: create new bug and send response as JSON
   debugBug('hit new');
   const newBug = req.body;
-  if (newBug.title && newBug.description && newBug.stepsToReproduce) {
-    newBug.bugId = nanoid();
-    newBug.creationTime = Date();
-    bugsArray.push(newBug);
-    res.status(200).json({message: `New bug ${newBug.title} reported!`});
-  } else {
-    res.status(400).json({error: 'Missing fields required.'});
+  try {
+    const dbResult = await createBug(newBug);
+    if(dbResult.acknowledged == true){
+      debugBug('Bug created');
+      res.status(200).json({message:`Bug id #${newBug._id} was added`});
+    } else {
+      debugBug(dbResult);
+      res.status(400).json({message:dbResult});
+    }
+  } catch (err) {
+    debugBug('.post failed');
+    res.status(500).json({error: err});
   }
 });
 
-router.put('/:bugId', (req, res) => {
+router.put('/:bugId', async (req, res) => {
   //FIXME: update existing bug and send response as JSON
-  let idFound = false;
-  let toUpdate;
-  for (const bug of bugsArray) {
-    if (bug.bugId == req.params.bugId) {
-      toUpdate = bug;
-      idFound = true;
-      break;
+  const bugId = req.params.bugId;
+  const updatedBug = req.body;
+  try {
+    const dbResult = await updateBug(bugId, updatedBug);
+    if(dbResult.acknowledged == true){
+      debugBug('Bug updated');
+      res.status(200).json({message:`Bug id #${bugId} was updated`});
+    } else {
+      debugBug(dbResult);
+      res.status(400).json({message:dbResult});
     }
-  }
-  if (idFound) {
-    if (req.body.title) {
-      toUpdate.title = req.body.title;
-    }
-    if (req.body.description) {
-      toUpdate.description = req.body.description;
-    }
-    if (req.body.stepsToReproduce) {
-      toUpdate.stepsToReproduce = req.body.stepsToReproduce;
-    }
-    toUpdate.lastUpdated = Date();
-    res.status(200).json({message: `Bug id #${req.params.bugId} updated!`});
-  } else {
-    res.status(404).json({ error: `Bug id #${req.params.bugId} not found.`});
+  } catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({error: 'Bug not found'});
   }
 });
 
-router.put('/:bugId/classify', (req, res) => {
+router.put('/:bugId/classify', async (req, res) => {
   //FIXME: classify bug and send response as JSON
-  let idFound = false;
-  let toClassify;
-  for (const bug of bugsArray) {
-    if (bug.bugId == req.params.bugId) {
-      toClassify = bug;
-      idFound = true;
-      break;
-    }
-  }
-  if (idFound) {
-    if (req.body.classification) {
-      toClassify.classification = req.body.classification;
-      toClassify.classifiedOn = Date();
-      toClassify.lastUpdated = Date();
-      res.status(200).json({message: `Bug id #${req.params.bugId} classified!`});
+  const bugId = req.params.bugId;
+  const classification = req.body; 
+  try {
+    const dbResult = await classifyBug(bugId, classification);
+    if(dbResult.acknowledged == true){
+      debugBug('Bug classified');
+      res.status(200).json({message:`Bug id #${bugId} was classified as ${classification.classification}`});
     } else {
-      res.status(400).json({error: 'Missing classification field.'});
+      debugBug(dbResult);
+      res.status(400).json({message:'Bug not found'});
     }
-  } else {
-    res.status(404).json({ error: `Bug id #${req.params.bugId} not found.`});
+  } catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({message:'Bug not found'});
   }
 });
 
-router.put('/:bugId/assign', (req, res) => {
+router.put('/:bugId/assign', async (req, res) => {
   //FIXME: assign bug to a user and send response as JSON
-  let idFound = false;
-  let toAssign;
-  for (const bug of bugsArray) {
-    if (bug.bugId == req.params.bugId) {
-      toAssign = bug;
-      idFound = true;
-      break;
-    }
-  }
-  if (idFound) {
-    if (req.body.assignedToUserId && req.body.assignedToUserName) {
-      toAssign.assignedToUserId = req.body.assignedToUserId;
-      toAssign.assignedToUserName = req.body.assignedToUserName;
-      toAssign.assignedOn = Date();
-      toAssign.lastUpdated = Date();
-      res.status(200).json({message: `Bug id #${req.params.bugId} assigned!`});
+  const bugId = req.params.bugId;
+  const assignedTo = req.body;
+  debugBug(assignedTo);
+  try{
+    const dbResult = await assignBug(bugId, assignedTo.assignedToUserId);
+    debugBug(dbResult);
+    if(dbResult.acknowledged == true){
+      debugBug('Bug assigned');
+      res.status(200).json({message:`Bug id #${bugId} was assigned`});
     } else {
-      res.status(400).json({error: 'Missing required field.'});
+      debugBug(dbResult);
+      res.status(400).json({message:'Bug or user not found'});
     }
-  } else {
-    res.status(404).json({ error: `Bug id #${req.params.bugId} not found.`});
+  } catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({message:'Bug or user not found'});
   }
 });
 
-router.put('/:bugId/close', (req, res) => {
+router.put('/:bugId/close', async (req, res) => {
   //FIXME: close bug and send response as JSON
-  let idFound = false;
-  let toClose;
-  for (const bug of bugsArray) {
-    if (bug.bugId == req.params.bugId) {
-      toClose = bug;
-      idFound = true;
-      break;
-    }
-  }
-  if (idFound) {
-    if (req.body.closed) {
-      toClose.closed = req.body.closed;
-      toClose.closedOn = Date();
-      toClose.lastUpdated = Date();
-      res.status(200).json({message: `Bug id #${req.params.bugId} closed!`});
+  const bugId = req.params.bugId;
+  const closed = req.body.closed;
+  try {
+    const dbResult = await closeBug(bugId, closed);
+    if(dbResult.acknowledged == true){
+      debugBug('Bug closed');
+      res.status(200).json({message:`Bug id #${bugId} was closed`});
     } else {
-      res.status(400).json({error: 'Missing required field.'});
+      debugBug(dbResult);
+      res.status(400).json({message:'Bug not found'});
     }
-  } else {
-    res.status(404).json({ error: `Bug id #${req.params.bugId} not found.`});
+  } catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({message:'Bug not found'});
   }
 });
 

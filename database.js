@@ -33,13 +33,13 @@ async function ping() {
 }
 
 // FIXME: add more functions here
+//User Functions
 async function getUsers() {
   debugDb('Getting all users');
   const db = await connect();
   const users = await db.collection('Users').find({}).toArray();
   return users;
 }
-
 async function getUserById(id) {
   debugDb('Getting user by id');
   const db = await connect();
@@ -47,8 +47,8 @@ async function getUserById(id) {
   if (user.password) {
 
   return user;
-}};
-
+}
+};
 async function registerUser(newUser) {
   debugDb('Registering user');
   const db = await connect();
@@ -137,8 +137,121 @@ async function deleteUser(id) {
   const result = await db.collection('Users').deleteOne({_id: newId(id)});
   return result;
 };
+//Bug Functions
+async function getBugs() {
+  debugDb('Getting all bugs');
+  const db = await connect();
+  const bugs = await db.collection('Bugs').find({}).toArray();
+  return bugs;
+}
+async function getBugById(id) {
+  debugDb('Getting bug by id');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  return bug;
+}
+async function createBug(newBug) {
+  debugDb('Creating bug');
+  const db = await connect();
+  let valid = true;
+  let errorStr = '';
+  if(!newBug.title){
+    valid = false;
+    errorStr += `Missing field: title, `;
+  }
+  if(!newBug.description){
+    valid = false;
+    errorStr += `Missing field: description, `;
+  }
+  if(!newBug.stepsToReproduce){
+    valid = false;
+    errorStr += `Missing field: stepsToReproduce, `;
+  }
+  if(valid)  {
+    newBug._id = new ObjectId();
+    newBug.creationDate = Date();
+    const bug = await db.collection('Bugs').insertOne(newBug);
+    return bug;
+  } else {
+    return errorStr;
+  }
+}
+async function updateBug(id, updatedBug) {
+  debugDb('Updating bug');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  if (!bug) {
+    return false;
+  }
+  if (updatedBug.title) {
+    bug.title = updatedBug.title;
+  }
+  if (updatedBug.description) {
+    bug.description = updatedBug.description;
+  }
+  if (updatedBug.stepsToReproduce) {
+    bug.stepsToReproduce = updatedBug.stepsToReproduce;
+  }
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  return result;
+}
+async function classifyBug(id, classification) {
+  debugDb('Classifying bug');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  if (!bug) {
+    return false;
+  }
+  if (classification.classification) {
+    bug.classification = classification.classification;
+    bug.classifiedOn = Date();
+    bug.lastUpdated = Date();
+  } else {
+    return false;
+  }
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  return result;
+}
+async function assignBug(id, assignedToUserId) {
+  debugDb('Assigning bug');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  const assignedUser = await db.collection('Users').findOne({_id: newId(assignedToUserId)});
+  debugDb(bug);
+  if (!bug || !assignedUser) {
+    return false;
+  }
+  if (assignedToUserId) {
+    bug.assignedToUserId = assignedUser._id;
+    bug.assignedToUserName = assignedUser.fullName;
+    bug.assignedOn = Date();
+    bug.lastUpdated = Date();
+    const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+    debugDb(result);
+    return result;
+  } else {
+    return false;
+  }
+}
+async function closeBug(id, status) {
+  debugDb('Closing bug');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  if (!bug) {
+    return false;
+  }
+  if (status) {
+    bug.closed = status;
+    bug.closedOn = Date();
+    bug.lastUpdated = Date();
+  } else {
+    return false;
+  }
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  return result;
+}
 // export functions
-export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser}
+export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug };
 
 // test the database connection
 ping();
