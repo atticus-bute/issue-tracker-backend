@@ -134,6 +134,10 @@ async function updateUser(id, updatedUser) {
 async function deleteUser(id) {
   debugDb('Deleting user');
   const db = await connect();
+  const user = await db.collection('Users').findOne({_id: newId(id)});
+  if (!user) {
+    return false;
+  }
   const result = await db.collection('Users').deleteOne({_id: newId(id)});
   return result;
 };
