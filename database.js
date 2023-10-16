@@ -248,7 +248,7 @@ async function addComment(id, comment, author) {
   if (comment && author) {
     debugDb(`${comment}, ${author}`)
     let newComment = {};
-    newComment.id = new ObjectId();
+    newComment._id = new ObjectId();
     newComment.comment = comment;
     newComment.author = author;
     newComment.date = Date();
@@ -263,8 +263,9 @@ async function addComment(id, comment, author) {
 async function listComments(id) {
   debugDb('Getting comments');
   const db = await connect();
-  const comments = await db.collection('Bugs').findOne({_id: newId(id)}).comments.toArray();
-  return comments;
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  debugDb`The comments are: ${bug.comments}`
+  return bug.comments;
 }
 async function getComment(bugId, commentId) {
   debugDb('Getting comment');
@@ -273,17 +274,22 @@ async function getComment(bugId, commentId) {
   if (!bug) {
     return false;
   }
-  const comment = bug.comments.find(comment => comment.id == commentId);
+  const comment = bug.comments.find(comment => comment._id == commentId);
   if (!comment) {
     return false;
   }
   return comment;
 }
-async function listTestCases(id) {
+async function listTestCases(bugId) {
   debugDb('Getting test cases');
   const db = await connect();
-  debugDb();
-  const testCases = await db.collection('Bugs').find({bugId: newId(id)}).testCases.toArray();
+  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  debugDb(bug);
+  if (!bug) {
+    return false;
+  }
+  const testCases = bug.testCases;
+  debugDb(testCases);
   return testCases;
 }
 async function getTestCase(bugId, testCaseId) {
@@ -293,7 +299,8 @@ async function getTestCase(bugId, testCaseId) {
   if (!bug) {
     return false;
   }
-  const testCase = bug.testCases.find(testCase => testCase.id == testCaseId);
+  const testCase = bug.testCases.find(testCase => testCase._id == testCaseId);
+  debugDb(testCase);
   if (!testCase) {
     return false;
   }
@@ -306,50 +313,38 @@ async function newTestCase(bugId, testCase) {
   if (!bug) {
     return false;
   }
-  if (testCase) {
+  if (testCase || testCase == false) {
     const newTestCase = {};
-    newTestCase.testCase = testCase;
-    newTestCase.id = new ObjectId();
+    newTestCase.passed = testCase;
+    newTestCase._id = new ObjectId();
     newTestCase.date = Date();
+    debugDb(newTestCase);
     bug.testCases.push(newTestCase);
+    debugDb('test case pushed');
   } else {
     return false;
   }
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(bugId) }, {$set:{...bug}});
   return result;
 }
-async function updateTestCase(bugId, testCaseId, testCase) {
-  debugDb('Updating test case');
+async function updateTestCase(bugId, testCaseId, updatedTestCase) {
+  debugDb(`Updated test case ${testCaseId} for bug ${bugId} with ${updatedTestCase}`);
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
-  if (!bug) {
-    return false;
-  }
-  const test = bug.testCases.find(testCase => testCase.id == testCaseId);
-  if (!test) {
-    return false;
-  }
-  if (testCase) {
-    test.testCase = testCase;
-    test.date = Date();
-  } else {
-    return false;
-  }
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
-  return result;
+  updatedTestCase._id = new ObjectId();
+  updatedTestCase.date = Date();
+  const dbResult = await db.collection('Bugs').updateOne(
+    {_id:{$eq:bugId}, 'testCases._id': {$eq:testCaseId}},
+    {$set: {'testCases.$': updatedTestCase }}
+  );
+  debugDb(dbResult);
+  return dbResult;
 }
 async function deleteTestCase(bugId, testCaseId) {
   debugDb('Deleting test case');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
-  if (!bug) {
-    return false;
-  }
-  const test = bug.testCases.find(testCase => testCase.id == testCaseId);
-  if (!test) {
-    return false;
-  }
-  bug.testCases
+  bug.testCases = bug.testCases.filter(testCase => testCase._id != testCaseId);
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(bugId) }, {$set:{...bug}});
   return result;
 }
 async function closeBug(id, status) {

@@ -30,7 +30,7 @@ const testCaseSchema = joi.object({
   passed: joi.boolean().required()
 });
 router.use(express.urlencoded({ extended: false }));
-
+//List all bugs
 router.get('/list', async (req, res) => {
   try {
     const bugs = await getBugs();
@@ -40,13 +40,14 @@ router.get('/list', async (req, res) => {
     res.status(500).json({ error: 'Bugs not found' });
   }
 });
-
+//List bug by id
 router.get('/:bugId', validId('bugId'), async (req, res) => {
-  const bugId = req.params.bugId;
+  const bugId = req.bugId;
   try{
     const bug = await getBugById(bugId);
     if (bug) {
       debugBug('Bug found');
+      //debugBug(bug);
       res.status(200).json(bug);
     } else {
       debugBug('Bug not found');
@@ -57,13 +58,14 @@ router.get('/:bugId', validId('bugId'), async (req, res) => {
     res.status(500).json({ error: `Bug id #${bugId} not found` });
   }
 });
+//List comments by bug id
 router.get('/:bugId/comment/list', validId('bugId'), async (req, res) => {
-  const bugId = req.params.bugId;
+  const bugId = req.bugId;
   try{
     const comments = await listComments(bugId);
     if (comments) {
       debugBug('Comments found');
-      res.status(200).json(bug.comments);
+      res.status(200).json(comments);
     } else {
       debugBug('Comments not found');
       res.status(404).json({ error: `Bug id #${bugId} comments not found` });
@@ -73,8 +75,26 @@ router.get('/:bugId/comment/list', validId('bugId'), async (req, res) => {
     res.status(500).json({ error: `Bug id #${bugId} not found` });
   }
 });
+//List test cases by bug id
+router.get('/:bugId/test/list', validId('bugId'), async (req, res) => {
+  const bugId = req.bugId;
+  try{
+    const testCases = await listTestCases(bugId);
+    if (testCases) {
+      debugBug('Test Cases found');
+      res.status(200).json(testCases);
+    } else {
+      debugBug('Test Cases not found');
+      res.status(404).json({ error: `Bug id #${bugId} test cases not found` });
+    }
+  } catch (err) {
+    debugBug('.get failed');
+    res.status(500).json({ error: `Bug id #${bugId} not found` });
+  }
+});
+//List comment by bug id and comment id
 router.get('/:bugId/comment/:commentId', validId('bugId'), validId('commentId'), async (req, res) => {
-  const bugId = req.params.bugId;
+  const bugId = req.bugId;
   const commentId = req.params.commentId;
   try{
     const comment = await getComment(bugId, commentId);
@@ -91,6 +111,25 @@ router.get('/:bugId/comment/:commentId', validId('bugId'), validId('commentId'),
     res.status(500).json({ error: `Bug id #${bugId} not found` });
   }
 });
+//List test case by bug id and test case id
+router.get('/:bugId/test/:testCaseId', validId('bugId'), validId('testCaseId'), async (req, res) => {
+  const bugId = req.bugId;
+  const testCaseId = req.params.testCaseId;
+  try{
+    const testCase = await getTestCase(bugId, testCaseId);
+    if (testCase) {
+      debugBug('Test Case found');
+      res.status(200).json(testCase);
+    } else {
+      debugBug('Test Case not found');
+      res.status(404).json({ error: `Test Case id #${testCaseId} not found` });
+    }
+  } catch (err) {
+    debugBug('.get failed');
+    res.status(500).json({ error: `Bug id #${bugId} not found` });
+  }
+});
+//Create new bug
 router.post('/new', validBody(newBugSchema), async (req, res) => {
   //FIXME: create new bug and send response as JSON
   debugBug('hit new');
@@ -109,7 +148,7 @@ router.post('/new', validBody(newBugSchema), async (req, res) => {
     res.status(500).json({error: err});
   }
 });
-
+//Update existing bug
 router.put('/:bugId', validId('bugId'), validBody(newBugSchema), async (req, res) => {
   //FIXME: update existing bug and send response as JSON
   const bugId = req.params.bugId;
@@ -128,7 +167,7 @@ router.put('/:bugId', validId('bugId'), validBody(newBugSchema), async (req, res
     res.status(500).json({error: 'Bug not found'});
   }
 });
-
+//Classify bug
 router.put('/:bugId/classify', validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
   //FIXME: classify bug and send response as JSON
   const bugId = req.params.bugId;
@@ -147,7 +186,7 @@ router.put('/:bugId/classify', validId('bugId'), validBody(classifyBugSchema), a
     res.status(500).json({message:'Bug not found'});
   }
 });
-
+//Assign bug
 router.put('/:bugId/assign', validId('bugId'), validId('req.body.assignedToUserId'), async (req, res) => {
   //FIXME: assign bug to a user and send response as JSON
   const bugId = req.params.bugId;
@@ -168,7 +207,7 @@ router.put('/:bugId/assign', validId('bugId'), validId('req.body.assignedToUserI
     res.status(500).json({message:'Bug or user not found'});
   }
 });
-
+//Close bug
 router.put('/:bugId/close', validId('bugId'), validBody(closeBugSchema ), async (req, res) => {
   //FIXME: close bug and send response as JSON
   const bugId = req.params.bugId;
@@ -187,6 +226,7 @@ router.put('/:bugId/close', validId('bugId'), validBody(closeBugSchema ), async 
     res.status(500).json({message:'Bug not found'});
   }
 });
+//Add comment to bug
 router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const comment = req.body;
@@ -206,5 +246,66 @@ router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), as
     res.status(500).json({message:'Bug not found'});
   }
 });
-
+//Add test-case to bug
+router.put('/:bugId/test/new', validId('bugId'), validBody(testCaseSchema), async (req, res) => {
+  const bugId = req.params.bugId;
+  const testCase = req.body;
+  try{
+    debugBug('Try block hit');
+    const dbResult = await newTestCase(bugId, testCase.passed);
+    debugBug(dbResult);
+    if(dbResult.acknowledged == true){
+      debugBug('Test Case added');
+      res.status(200).json({message:`Test Case was added`});
+    } else {
+      debugBug(dbResult);
+      res.status(400).json({message:'Bug not found'});
+    }
+  }catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({message:'Bug not found'});
+  }
+});
+//Update test case
+router.put('/:bugId/test/:testId', validId('bugId'), validId('testId'), validBody(testCaseSchema), async (req, res) => {
+  const bugId = req.bugId;
+  const testCaseId = req.testId;
+  const testCase = req.body;
+  debugBug(`The test case is ${testCase.passed}`);
+  try{
+    debugBug('Try block hit');
+    const dbResult = await updateTestCase(bugId, testCaseId, testCase);
+    debugBug(dbResult);
+    if(dbResult.modifiedCount == 1){
+      debugBug('Test Case updated');
+      res.status(200).json({message:`Test Case was updated`});
+    } else {
+      debugBug(dbResult);
+      res.status(400).json({message:'Bug not found'});
+    }
+  }catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({message:'Bug not found'});
+  }
+});
+//Delete test case
+router.delete('/:bugId/test/:testId', validId('bugId'), validId('testId'), async (req, res) => {
+  const bugId = req.bugId;
+  const testId = req.testId;
+  try{
+    debugBug('Try block hit');
+    const dbResult = await deleteTestCase(bugId, testId);
+    debugBug(dbResult);
+    if(dbResult.acknowledged == true){
+      debugBug('Test Case deleted');
+      res.status(200).json({message:`Test Case was deleted`});
+    } else {
+      debugBug(dbResult);
+      res.status(400).json({message:'Bug not found'});
+    }
+  }catch (err) {
+    debugBug('.put failed');
+    res.status(500).json({message:'Bug not found'});
+  }
+});
 export {router as bugRouter};
