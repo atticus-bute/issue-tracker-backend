@@ -12,12 +12,12 @@ import {ping, connect, newId} from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 //create our web server
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/users', userRouter);
 app.use('/api/bugs', bugRouter);
+app.use(express.static('public'));
 
 //register routes
 app.get('/', (req, res) => {

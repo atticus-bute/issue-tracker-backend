@@ -7,8 +7,30 @@ const debugUser = debug('app:UserRouter');
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcrypt';
 import { getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser } from '../../database.js';
+import { validId } from '../../middleware/validId.js';
+import { validBody } from '../../middleware/validBody.js';
 import e from 'express';
+import joi from 'joi';
 import { ObjectId } from 'mongodb';
+const newUserSchema = joi.object({
+  givenName: joi.string().min(1).required(),
+  familyName: joi.string().min(1).required(),
+  email: joi.string().email().required(),
+  password: joi.string().required(),
+  role: joi.array().items(joi.string().valid('developer', 'quality analyst', 'business analyst', 'product manager', 'technical manager')).required()
+});
+const loginSchema = joi.object({
+  email: joi.string().email().required(),
+  password: joi.string().required()
+});
+const updateUserSchema = joi.object({
+  givenName: joi.string().min(1),
+  familyName: joi.string().min(1),
+  fullName: joi.string().min(1),
+  email: joi.string().email(),
+  password: joi.string(),
+  role: joi.array().items(joi.string().valid('developer', 'quality analyst', 'business analyst', 'product manager', 'technical manager'))
+});
 
 router.use(express.urlencoded({ extended: false }));
 
@@ -26,7 +48,7 @@ router.get('/list', async(req, res) => {
   }
 });
 
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', validId('userId'), async (req, res) => {
   debugUser('Getting user by id');
   const id = req.params.userId;
   try{
@@ -40,11 +62,11 @@ router.get('/:userId', async (req, res) => {
     }
   } catch (err) {
     debugUser('.get failed');
-    res.status(500).json({error: err});
+    res.status(500).json({error: 'Invalid ID'});
   }
 });
 
-router.post('/register', async (req, res) => {
+router.post('/register', validBody(newUserSchema), async (req, res) => {
   //FIXME: register new user and send response as JSON
   const newUser = req.body;
   newUser.password = await bcrypt.hash(newUser.password, 10);
@@ -85,7 +107,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.put('/:userId', async (req, res) => {
+router.put('/:userId', validId('userId'), validBody(updateUserSchema), async (req, res) => {
   //FIXME: update existing user and send response as JSON
   const id = req.params.userId;
   const updatedUser = req.body;
@@ -105,7 +127,7 @@ router.put('/:userId', async (req, res) => {
   }
 });
 
-router.delete('/:userId', async (req, res) => {
+router.delete('/:userId', validId('userId'), async (req, res) => {
   const id = req.params.userId;
   try{
     const dbResult = await deleteUser(id);

@@ -66,8 +66,7 @@ async function registerUser(newUser) {
     errorStr += `Missing field: password, `;
   }
   if(!newUser.fullName){
-    valid = false;
-    errorStr += `Missing field: fullName, `;
+    newUser.fullName = `${newUser.givenName} ${newUser.familyName}`;
   }
   if(!newUser.givenName){
     valid = false;
@@ -174,6 +173,8 @@ async function createBug(newBug) {
   if(valid)  {
     newBug._id = new ObjectId();
     newBug.creationDate = Date();
+    newBug.comments = [];
+    newBug.testCases = [];
     const bug = await db.collection('Bugs').insertOne(newBug);
     return bug;
   } else {
@@ -237,6 +238,120 @@ async function assignBug(id, assignedToUserId) {
     return false;
   }
 }
+async function addComment(id, comment, author) {
+  debugDb('Adding comment');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  if (!bug) {
+    return false;
+  }
+  if (comment && author) {
+    debugDb(`${comment}, ${author}`)
+    let newComment = {};
+    newComment.id = new ObjectId();
+    newComment.comment = comment;
+    newComment.author = author;
+    newComment.date = Date();
+    bug.comments.push(newComment);
+  } else {
+    return false;
+  }
+  debugDb('Result next');
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  return result;
+}
+async function listComments(id) {
+  debugDb('Getting comments');
+  const db = await connect();
+  const comments = await db.collection('Bugs').findOne({_id: newId(id)}).comments.toArray();
+  return comments;
+}
+async function getComment(bugId, commentId) {
+  debugDb('Getting comment');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  if (!bug) {
+    return false;
+  }
+  const comment = bug.comments.find(comment => comment.id == commentId);
+  if (!comment) {
+    return false;
+  }
+  return comment;
+}
+async function listTestCases(id) {
+  debugDb('Getting test cases');
+  const db = await connect();
+  debugDb();
+  const testCases = await db.collection('Bugs').find({bugId: newId(id)}).testCases.toArray();
+  return testCases;
+}
+async function getTestCase(bugId, testCaseId) {
+  debugDb('Getting test case');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  if (!bug) {
+    return false;
+  }
+  const testCase = bug.testCases.find(testCase => testCase.id == testCaseId);
+  if (!testCase) {
+    return false;
+  }
+  return testCase;
+}
+async function newTestCase(bugId, testCase) {
+  debugDb('Creating test case');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  if (!bug) {
+    return false;
+  }
+  if (testCase) {
+    const newTestCase = {};
+    newTestCase.testCase = testCase;
+    newTestCase.id = new ObjectId();
+    newTestCase.date = Date();
+    bug.testCases.push(newTestCase);
+  } else {
+    return false;
+  }
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  return result;
+}
+async function updateTestCase(bugId, testCaseId, testCase) {
+  debugDb('Updating test case');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  if (!bug) {
+    return false;
+  }
+  const test = bug.testCases.find(testCase => testCase.id == testCaseId);
+  if (!test) {
+    return false;
+  }
+  if (testCase) {
+    test.testCase = testCase;
+    test.date = Date();
+  } else {
+    return false;
+  }
+  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  return result;
+}
+async function deleteTestCase(bugId, testCaseId) {
+  debugDb('Deleting test case');
+  const db = await connect();
+  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  if (!bug) {
+    return false;
+  }
+  const test = bug.testCases.find(testCase => testCase.id == testCaseId);
+  if (!test) {
+    return false;
+  }
+  bug.testCases
+  return result;
+}
 async function closeBug(id, status) {
   debugDb('Closing bug');
   const db = await connect();
@@ -255,7 +370,7 @@ async function closeBug(id, status) {
   return result;
 }
 // export functions
-export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug };
+export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase };
 
 // test the database connection
 ping();
