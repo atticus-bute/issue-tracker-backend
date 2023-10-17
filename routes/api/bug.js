@@ -5,7 +5,7 @@ import debug from 'debug';
 import e from 'express';
 const debugBug = debug('app:BugRouter');
 
-import { getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase } from '../../database.js';
+import { getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase, connect } from '../../database.js';
 import { nanoid } from 'nanoid';
 import joi from 'joi';
 import { validId } from '../../middleware/validId.js';
@@ -32,8 +32,20 @@ const testCaseSchema = joi.object({
 router.use(express.urlencoded({ extended: false }));
 //List all bugs
 router.get('/list', async (req, res) => {
+  debugBug(`hit list, with query string: ${JSON.stringify(req.query)}}`);
+  let {keywords} = req.query;
+  let match = {};
   try {
-    const bugs = await getBugs();
+    if(keywords){
+      match.$text = {$search: keywords};
+    }
+    const pipeline = [
+      {$match: match}
+      //43:48 in the vid
+    ];
+    const db = await connect();
+    const cursor = await db.collection('Bugs').aggregate(pipeline);
+    const bugs = await cursor.toArray();
     res.status(200).json(bugs);
   } catch (err) {
     debugBug('.get failed');
