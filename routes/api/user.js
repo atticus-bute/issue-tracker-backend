@@ -6,7 +6,7 @@ const debugUser = debug('app:UserRouter');
 
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcrypt';
-import { getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser } from '../../database.js';
+import { getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, connect } from '../../database.js';
 import { validId } from '../../middleware/validId.js';
 import { validBody } from '../../middleware/validBody.js';
 import e from 'express';
@@ -38,9 +38,68 @@ router.use(express.urlencoded({ extended: false }));
 //we will replace this with a database in a later assignment
 
 router.get('/list', async(req, res) => {
-  debugUser('Getting all users');
+  debugUser(`hit list, with query string: ${JSON.stringify(req.query)}}`);
+  let { keywords, role, maxAge, minAge, sortBy, pageSize, pageNumber } = req.query;
+  let sort = {givenName: 1};
+  let match = {};
+  const today = new Date(); // Get current date and time
+  today.setHours(0);
+  today.setMinutes(0);
+  today.setSeconds(0);
+  today.setMilliseconds(0); // Remove time from Date
+  const pastMaximumDaysOld = new Date(today);
+  pastMaximumDaysOld.setDate(pastMaximumDaysOld.getDate() - maxAge); // Set pastMaximumDaysOld to today minus maxAge
+  const pastMinimumDaysOld = new Date(today);
+  pastMinimumDaysOld.setDate(pastMinimumDaysOld.getDate() - minAge); // Set pastMinimumDaysOld to today minus minAge
+  debugUser(`pastMaximumDaysOld: ${pastMaximumDaysOld}`);
+  debugUser(`pastMinimumDaysOld: ${pastMinimumDaysOld}`);
+
   try{
-    const users = await getUsers();
+    if(keywords){
+      match.$text = {$search: keywords};
+    }
+
+    if(role){
+      match.role = role;
+    }
+
+    if (maxAge && minAge) {
+      match.creationDate = { $lte: pastMinimumDaysOld, $gte: pastMaximumDaysOld };
+    } else if (minAge) {
+      match.creationDate = { $lte: pastMinimumDaysOld };
+    } else if (maxAge) {
+      match.creationDate = { $gte: pastMaximumDaysOld };
+    }
+
+    switch (sortBy) {
+      case 'givenName': sort = {givenName: 1, familyName :1, creationDate: 1}; break;
+      case 'familyName': sort = {familyName: 1, givenName: 1, creationDate: 1}; break;
+      case 'role': sort = {role: 1, givenName: 1, familyName: 1, creationDate: 1}; break;
+      case 'newest': sort = {creationDate: -1}; break;
+      case 'oldest': sort = {creationDate: 1}; break;
+    }
+    debugUser(sort);
+
+    pageNumber = parseInt(pageNumber) || 1;
+    pageSize = parseInt(pageSize) || 10;
+    const skip = (pageNumber - 1) * pageSize;
+    const limit = pageSize;
+
+    debugUser(`match: ${JSON.stringify(match)}`);
+
+    const pipeline = [
+      { $match: match },
+      { $sort: sort },
+      { $skip: skip },
+      { $limit: limit }
+    ];
+    debugUser(`pipeline: ${JSON.stringify(pipeline)}`);
+
+    const db = await connect();
+    debugUser('Connected to database');
+    const cursor = await db.collection('Users').aggregate(pipeline);
+    debugUser('Got cursor');
+    const users = await cursor.toArray();
     res.status(200).json(users);
   } catch (err) {
     debugUser('.get failed');
@@ -111,6 +170,7 @@ router.put('/:userId', validId('userId'), validBody(updateUserSchema), async (re
   //FIXME: update existing user and send response as JSON
   const id = req.params.userId;
   const updatedUser = req.body;
+  updatedUser.password = await bcrypt.hash(updatedUser.password, 10);
   try {
     debugUser('Try block hit');
     const dbResult = await updateUser(id, updatedUser);

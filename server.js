@@ -37,3 +37,5 @@ const port = process.env.PORT || 5001;
 app.listen(port, () => {
   debugMain(`Listening on port http://localhost:${port}`);
 });
+debugMain('test');
+ping();
