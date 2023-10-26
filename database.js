@@ -5,6 +5,7 @@ dotenv.config();
 
 import { MongoClient, ObjectId } from "mongodb";
 import debug from 'debug';
+//import { result } from 'lodash';
 const debugDb = debug('app:Database');
 
 /** Generate/Parse an ObjectId */
@@ -127,7 +128,7 @@ async function updateUser(id, updatedUser) {
     user.role = updatedUser.role;
   }
   const result = await db.collection('Users').updateOne({ _id:new ObjectId(id) }, {$set:{...updatedUser}});
-  debugDb(user);
+  //debugDb(user);
   return result;
 };
 async function deleteUser(id) {
@@ -152,6 +153,35 @@ async function getBugById(id) {
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(id)});
   return bug;
+}
+async function recordRegister(user, col, op) {
+  debugDb('Recording edit');
+  const db = await connect();
+  const edit = {
+    timestamp: new Date(),
+    col: col,
+    op: op,
+    target: user._id,
+    update: user
+  };
+  const dbResult = await db.collection('Edits').insertOne(edit);
+  debugDb(dbResult);
+  return dbResult;
+}
+async function recordEdit(user, col, op, update, auth) {
+  debugDb('Recording edit');
+  const db = await connect();
+  const edit = {
+    timestamp: new Date(),
+    col: col,
+    op: op,
+    target: user._id || user,
+    update: update,
+    auth: auth
+  };
+  const dbResult = await db.collection('Edits').insertOne(edit);
+  debugDb(dbResult);
+  return dbResult;
 }
 async function createBug(newBug) {
   debugDb('Creating bug');
@@ -368,7 +398,7 @@ async function closeBug(id, status) {
   return result;
 }
 // export functions
-export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase };
+export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase, recordRegister, recordEdit };
 
 // test the database connection
 ping();

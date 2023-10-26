@@ -8,13 +8,21 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import { userRouter } from './routes/api/user.js';
 import { bugRouter } from './routes/api/bug.js';
-import {ping, connect, newId} from './database.js';
-
+import { ping, connect, newId } from './database.js';
+import cookieParser from 'cookie-parser';
+import { authMiddleware } from '@merlin4/express-auth';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 //create our web server
 const app = express();
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(
+  authMiddleware(process.env.JWT_SECRET, 'authToken', {
+    httpOnly: true,
+    maxAge: 1000 * 60 * 60
+  })
+);
 app.use('/api/users', userRouter);
 app.use('/api/bugs', bugRouter);
 app.use(express.static('public'));
@@ -28,7 +36,7 @@ app.get('/', (req, res) => {
 //Register Error Handlers
 app.use((req, res) => {
   debugMain(`Sorry, couldn't find ${req.originalUrl}`);
-  res.status(404).json({error:`Sorry, couldn't find ${req.originalUrl}`});
+  res.status(404).json({ error: `Sorry, couldn't find ${req.originalUrl}` });
 });
 
 //Add listener for requests
