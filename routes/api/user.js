@@ -330,6 +330,7 @@ router.put('/:userId', validId('userId'), validBody(updateUserSchema), async (re
         const authToken = await issueAuthToken(newUser);
         issueAuthCookie(res, authToken);
         debugUser(`User ${newUser.fullName} logged in`);
+
       }
       res.status(200).json({ message: `User ${id} was updated` });
     } else {

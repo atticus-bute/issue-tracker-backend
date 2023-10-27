@@ -143,6 +143,11 @@ async function deleteUser(id) {
 };
 //Bug Functions
 async function getBugs() {
+  if (!req.auth) {
+    debugUser(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   debugDb('Getting all bugs');
   const db = await connect();
   const bugs = await db.collection('Bugs').find({}).toArray();
@@ -168,14 +173,14 @@ async function recordRegister(user, col, op) {
   debugDb(dbResult);
   return dbResult;
 }
-async function recordEdit(user, col, op, update, auth) {
+async function recordEdit(target, col, op, update, auth) {
   debugDb('Recording edit');
   const db = await connect();
   const edit = {
     timestamp: new Date(),
     col: col,
     op: op,
-    target: user._id || user,
+    target: target._id || target,
     update: update,
     auth: auth
   };
@@ -183,7 +188,7 @@ async function recordEdit(user, col, op, update, auth) {
   debugDb(dbResult);
   return dbResult;
 }
-async function createBug(newBug) {
+async function createBug(newBug, author) {
   debugDb('Creating bug');
   const db = await connect();
   let valid = true;
@@ -203,16 +208,21 @@ async function createBug(newBug) {
   if(valid)  {
     newBug._id = new ObjectId();
     newBug.creationDate = new Date();
+    newBug.createdBy = author;
+    debugDb('Bug valid');
     newBug.comments = [];
     newBug.testCases = [];
+    newBug.classification = 'unclassified';
+    newBug.closed = false;
     debugDb(`New bug: ${JSON.stringify(newBug)}`)
     const bug = await db.collection('Bugs').insertOne(newBug);
+
     return bug;
   } else {
     return errorStr;
   }
 }
-async function updateBug(id, updatedBug) {
+async function updateBug(id, updatedBug, author) {
   debugDb('Updating bug');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(id)});
@@ -228,11 +238,12 @@ async function updateBug(id, updatedBug) {
   if (updatedBug.stepsToReproduce) {
     bug.stepsToReproduce = updatedBug.stepsToReproduce;
   }
-  bug.lastUpdated = new Date();
+  bug.lastUpdatedOn = new Date();
+  bug.lastUpdatedBy = author;
   const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
   return result;
 }
-async function classifyBug(id, classification) {
+async function classifyBug(id, classification, author) {
   debugDb('Classifying bug');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(id)});
@@ -242,6 +253,7 @@ async function classifyBug(id, classification) {
   if (classification.classification) {
     bug.classification = classification.classification;
     bug.classifiedOn = new Date();
+    bug.classifiedBy = author;
     bug.lastUpdated = new Date();
   } else {
     return false;
@@ -249,19 +261,21 @@ async function classifyBug(id, classification) {
   const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
   return result;
 }
-async function assignBug(id, assignedToUserId) {
+async function assignBug(id, assignedToUserId, author) {
   debugDb('Assigning bug');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(id)});
   const assignedUser = await db.collection('Users').findOne({_id: newId(assignedToUserId)});
-  debugDb(bug);
+  //debugDb(bug);
   if (!bug || !assignedUser) {
     return false;
   }
   if (assignedToUserId) {
+    debugDb('User found');
     bug.assignedToUserId = assignedUser._id;
     bug.assignedToUserName = assignedUser.fullName;
     bug.assignedOn = new Date();
+    bug.assignedBy = author;
     bug.lastUpdated = new Date();
     const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
     debugDb(result);
@@ -338,7 +352,7 @@ async function getTestCase(bugId, testCaseId) {
   }
   return testCase;
 }
-async function newTestCase(bugId, testCase) {
+async function newTestCase(bugId, testCase, author) {
   debugDb('Creating test case');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
@@ -349,7 +363,8 @@ async function newTestCase(bugId, testCase) {
     const newTestCase = {};
     newTestCase.passed = testCase;
     newTestCase._id = new ObjectId();
-    newTestCase.date = new Date();
+    newTestCase.createdOn = new Date();
+    newTestCase.createdBy = author;
     debugDb(newTestCase);
     bug.testCases.push(newTestCase);
     debugDb('test case pushed');
@@ -359,11 +374,12 @@ async function newTestCase(bugId, testCase) {
   const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(bugId) }, {$set:{...bug}});
   return result;
 }
-async function updateTestCase(bugId, testCaseId, updatedTestCase) {
+async function updateTestCase(bugId, testCaseId, updatedTestCase, author) {
   debugDb(`Updated test case ${testCaseId} for bug ${bugId} with ${updatedTestCase}`);
   const db = await connect();
   updatedTestCase._id = new ObjectId();
-  updatedTestCase.date = new Date();
+  updatedTestCase.lastUpdatedOn = new Date();
+  updatedTestCase.lastUpdatedBy = author;
   const dbResult = await db.collection('Bugs').updateOne(
     {_id:{$eq:bugId}, 'testCases._id': {$eq:testCaseId}},
     {$set: {'testCases.$': updatedTestCase }}
@@ -375,11 +391,19 @@ async function deleteTestCase(bugId, testCaseId) {
   debugDb('Deleting test case');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
-  bug.testCases = bug.testCases.filter(testCase => testCase._id != testCaseId);
+  let foundTestCase = false;
+  for (let i = 0; i < bug.testCases.length && foundTestCase == false; i++) {
+    if (bug.testCases[i]._id == testCaseId) {
+      bug.testCases.splice(i, 1);
+      foundTestCase = true;
+    }
+  }
+  // $pull query where test case id ==
+  debugDb(bug.testCases);
   const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(bugId) }, {$set:{...bug}});
   return result;
 }
-async function closeBug(id, status) {
+async function closeBug(id, status, author) {
   debugDb('Closing bug');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(id)});
@@ -390,6 +414,7 @@ async function closeBug(id, status) {
   if (status || status == false) {
     bug.closed = status;
     bug.closedOn = new Date();
+    bug.closedBy = author;
     bug.lastUpdated = new Date();
   } else {
     return false;

@@ -22,6 +22,8 @@ import {
   updateTestCase,
   deleteTestCase,
   connect,
+  recordEdit,
+  getUserById
 } from '../../database.js';
 import { nanoid } from 'nanoid';
 import joi from 'joi';
@@ -31,8 +33,7 @@ import { validBody } from '../../middleware/validBody.js';
 const newBugSchema = joi.object({
   title: joi.string().min(1).required(),
   description: joi.string().min(1).required(),
-  stepsToReproduce: joi.string().min(1).required(),
-  createdBy: joi.string().min(1).required(),
+  stepsToReproduce: joi.string().min(1).required()
 });
 const updateBugSchema = joi.object({
   title: joi.string().min(1),
@@ -50,8 +51,7 @@ const closeBugSchema = joi.object({
   closed: joi.boolean().required(),
 });
 const commentSchema = joi.object({
-  author: joi.string().min(1).required(),
-  comment: joi.string().min(1).required(),
+  comment: joi.string().min(1).required()
 });
 const testCaseSchema = joi.object({
   passed: joi.boolean().required(),
@@ -60,6 +60,12 @@ router.use(express.urlencoded({ extended: false }));
 //List all bugs
 router.get('/list', async (req, res) => {
   debugBug(`hit list, with query string: ${JSON.stringify(req.query)}}`);
+  debugBug(req.auth)
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   let { keywords, classification, maxAge, minAge, closed, sortBy, pageSize, pageNumber } = req.query;
   let sort = {creationDate: 1};
   let match = {};
@@ -143,6 +149,12 @@ router.get('/list', async (req, res) => {
 });
 //List bug by id
 router.get('/:bugId', validId('bugId'), async (req, res) => {
+  debugBug(req.auth)
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   try {
     const bug = await getBugById(bugId);
@@ -161,6 +173,11 @@ router.get('/:bugId', validId('bugId'), async (req, res) => {
 });
 //List comments by bug id
 router.get('/:bugId/comment/list', validId('bugId'), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   try {
     const comments = await listComments(bugId);
@@ -178,6 +195,11 @@ router.get('/:bugId/comment/list', validId('bugId'), async (req, res) => {
 });
 //List test cases by bug id
 router.get('/:bugId/test/list', validId('bugId'), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   try {
     const testCases = await listTestCases(bugId);
@@ -195,6 +217,11 @@ router.get('/:bugId/test/list', validId('bugId'), async (req, res) => {
 });
 //List comment by bug id and comment id
 router.get('/:bugId/comment/:commentId', validId('bugId'), validId('commentId'), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   const commentId = req.params.commentId;
   try {
@@ -214,6 +241,11 @@ router.get('/:bugId/comment/:commentId', validId('bugId'), validId('commentId'),
 });
 //List test case by bug id and test case id
 router.get('/:bugId/test/:testCaseId', validId('bugId'), validId('testCaseId'), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   const testCaseId = req.params.testCaseId;
   try {
@@ -232,13 +264,18 @@ router.get('/:bugId/test/:testCaseId', validId('bugId'), validId('testCaseId'), 
 });
 //Create new bug
 router.post('/new', validBody(newBugSchema), async (req, res) => {
-  //FIXME: create new bug and send response as JSON
   debugBug('hit new');
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const newBug = req.body;
   try {
-    const dbResult = await createBug(newBug);
+    const dbResult = await createBug(newBug, req.auth);
     if (dbResult.acknowledged == true) {
       debugBug('Bug created');
+      const editResult = await recordEdit(newBug, 'Bugs', 'insert', 'bug', req.auth);
       res.status(200).json({ message: `Bug id #${newBug._id} was added` });
     } else {
       debugBug(dbResult);
@@ -251,13 +288,30 @@ router.post('/new', validBody(newBugSchema), async (req, res) => {
 });
 //Update existing bug
 router.put('/:bugId', validId('bugId'), validBody(updateBugSchema), async (req, res) => {
-  //FIXME: update existing bug and send response as JSON
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.params.bugId;
-  const updatedBug = req.body;
+  const newBug = req.body;
   try {
-    const dbResult = await updateBug(bugId, updatedBug);
+    const dbResult = await updateBug(bugId, newBug, req.auth);
+    debugBug(dbResult);
     if (dbResult.acknowledged == true) {
+      let editLog = '';
+      if (req.body.title) {
+        editLog = `Title = ${req.body.title}. `;
+      }
+      if (req.body.description) {
+        editLog += `Description = ${req.body.fullName}. `;
+      }
+      if (req.body.stepsToReproduce) {
+        editLog += `Steps to Reproduce = ${req.body.stepsToReproduce}. `;
+      }
+      const updatedBug = await getBugById(bugId);
       debugBug('Bug updated');
+      const editResult = await recordEdit(updatedBug, 'Bugs', 'update', editLog, req.auth);
       res.status(200).json({ message: `Bug id #${bugId} was updated` });
     } else {
       debugBug(dbResult);
@@ -270,13 +324,19 @@ router.put('/:bugId', validId('bugId'), validBody(updateBugSchema), async (req, 
 });
 //Classify bug
 router.put('/:bugId/classify', validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
-  //FIXME: classify bug and send response as JSON
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.params.bugId;
   const classification = req.body;
   try {
-    const dbResult = await classifyBug(bugId, classification);
+    const dbResult = await classifyBug(bugId, classification, req.auth);
     if (dbResult.acknowledged == true) {
       debugBug('Bug classified');
+      const updatedBug = await getBugById(bugId);
+      const editResult = await recordEdit(updatedBug, 'Bugs', 'update', `Classification = ${classification.classification}`, req.auth);
       res.status(200).json({ message: `Bug id #${bugId} was classified as ${classification.classification}` });
     } else {
       debugBug(dbResult);
@@ -289,15 +349,22 @@ router.put('/:bugId/classify', validId('bugId'), validBody(classifyBugSchema), a
 });
 //Assign bug
 router.put('/:bugId/assign', validId('bugId'), validId('req.body.assignedToUserId'), async (req, res) => {
-  //FIXME: assign bug to a user and send response as JSON
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.params.bugId;
   const assignedTo = req.body;
   debugBug(assignedTo);
   try {
-    const dbResult = await assignBug(bugId, assignedTo.assignedToUserId);
+    const dbResult = await assignBug(bugId, assignedTo.assignedToUserId, req.auth);
     debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       debugBug('Bug assigned');
+      const updatedBug = await getBugById(bugId);
+      const userAssigned = await getUserById(assignedTo.assignedToUserId);
+      const editResult = await recordEdit(updatedBug, 'Bugs', 'update', `Assigned To = ${userAssigned.fullName}`, req.auth);
       res.status(200).json({ message: `Bug id #${bugId} was assigned` });
     } else {
       debugBug(dbResult);
@@ -310,13 +377,19 @@ router.put('/:bugId/assign', validId('bugId'), validId('req.body.assignedToUserI
 });
 //Close bug
 router.put('/:bugId/close', validId('bugId'), validBody(closeBugSchema), async (req, res) => {
-  //FIXME: close bug and send response as JSON
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   const closed = req.body.closed;
   try {
-    const dbResult = await closeBug(bugId, closed);
+    const dbResult = await closeBug(bugId, closed, req.auth);
     if (dbResult.acknowledged == true) {
       debugBug('Bug closed');
+      const updatedBug = await getBugById(bugId);
+      const editResult = await recordEdit(updatedBug, 'Bugs', 'update', `Bug ${bugId} was closed`, req.auth);
       res.status(200).json({ message: `Bug id #${bugId} was closed` });
     } else {
       debugBug(dbResult);
@@ -329,11 +402,16 @@ router.put('/:bugId/close', validId('bugId'), validBody(closeBugSchema), async (
 });
 //Add comment to bug
 router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.params.bugId;
   const comment = req.body;
   try {
     debugBug('Try block hit');
-    const dbResult = await addComment(bugId, comment.comment, comment.author);
+    const dbResult = await addComment(bugId, comment.comment, req.auth);
     debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       debugBug('Comment added');
@@ -349,14 +427,21 @@ router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), as
 });
 //Add test-case to bug
 router.put('/:bugId/test/new', validId('bugId'), validBody(testCaseSchema), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.params.bugId;
   const testCase = req.body;
   try {
     debugBug('Try block hit');
-    const dbResult = await newTestCase(bugId, testCase.passed);
+    const dbResult = await newTestCase(bugId, testCase.passed, req.auth);
     debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       debugBug('Test Case added');
+      const target = await getBugById(bugId);
+      const editResult = await recordEdit(target, 'Bugs', 'update', `Test case: ${req.body.passed}`, req.auth);
       res.status(200).json({ message: `Test Case was added` });
     } else {
       debugBug(dbResult);
@@ -369,16 +454,24 @@ router.put('/:bugId/test/new', validId('bugId'), validBody(testCaseSchema), asyn
 });
 //Update test case
 router.put('/:bugId/test/:testId', validId('bugId'), validId('testId'), validBody(testCaseSchema), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   const testCaseId = req.testId;
   const testCase = req.body;
   debugBug(`The test case is ${testCase.passed}`);
   try {
     debugBug('Try block hit');
-    const dbResult = await updateTestCase(bugId, testCaseId, testCase);
+    const dbResult = await updateTestCase(bugId, testCaseId, testCase, req.auth);
     debugBug(dbResult);
     if (dbResult.modifiedCount == 1) {
       debugBug('Test Case updated');
+      const target = await getBugById(bugId);
+      const editResult = await recordEdit(target, 'Bugs', 'update', `Test case: ${req.body.passed}`, req.auth);
+
       res.status(200).json({ message: `Test Case was updated` });
     } else {
       debugBug(dbResult);
@@ -391,6 +484,11 @@ router.put('/:bugId/test/:testId', validId('bugId'), validId('testId'), validBod
 });
 //Delete test case
 router.delete('/:bugId/test/:testId', validId('bugId'), validId('testId'), async (req, res) => {
+  if (!req.auth) {
+    debugBug(req.auth);
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
   const bugId = req.bugId;
   const testId = req.testId;
   try {
@@ -399,6 +497,8 @@ router.delete('/:bugId/test/:testId', validId('bugId'), validId('testId'), async
     debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       debugBug('Test Case deleted');
+      const editResult = await recordEdit(bugId, 'Bugs', 'delete', `Test case ${bugId} deleted.`, req.auth);
+
       res.status(200).json({ message: `Test Case was deleted` });
     } else {
       debugBug(dbResult);
