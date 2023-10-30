@@ -392,15 +392,11 @@ async function deleteTestCase(bugId, testCaseId) {
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
   let foundTestCase = false;
-  for (let i = 0; i < bug.testCases.length && foundTestCase == false; i++) {
-    if (bug.testCases[i]._id == testCaseId) {
-      bug.testCases.splice(i, 1);
-      foundTestCase = true;
-    }
-  }
-  // $pull query where test case id ==
+  const result = await db.collection('Bugs').updateOne(
+    {_id:{$eq:bugId}},
+    {$pull: {testCases: {_id: {$eq:testCaseId}}}}
+  );
   debugDb(bug.testCases);
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(bugId) }, {$set:{...bug}});
   return result;
 }
 async function closeBug(id, status, author) {
@@ -425,5 +421,4 @@ async function closeBug(id, status, author) {
 // export functions
 export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase, recordRegister, recordEdit };
 
-// test the database connection
 ping();

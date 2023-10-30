@@ -415,6 +415,7 @@ router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), as
     debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       debugBug('Comment added');
+      const editResult = await recordEdit(bugId, 'Bugs', 'update', `Comment: ${req.body.comment}`, req.auth);
       res.status(200).json({ message: `Comment was added` });
     } else {
       debugBug(dbResult);
@@ -471,7 +472,6 @@ router.put('/:bugId/test/:testId', validId('bugId'), validId('testId'), validBod
       debugBug('Test Case updated');
       const target = await getBugById(bugId);
       const editResult = await recordEdit(target, 'Bugs', 'update', `Test case: ${req.body.passed}`, req.auth);
-
       res.status(200).json({ message: `Test Case was updated` });
     } else {
       debugBug(dbResult);
@@ -498,7 +498,6 @@ router.delete('/:bugId/test/:testId', validId('bugId'), validId('testId'), async
     if (dbResult.acknowledged == true) {
       debugBug('Test Case deleted');
       const editResult = await recordEdit(bugId, 'Bugs', 'delete', `Test case ${bugId} deleted.`, req.auth);
-
       res.status(200).json({ message: `Test Case was deleted` });
     } else {
       debugBug(dbResult);
