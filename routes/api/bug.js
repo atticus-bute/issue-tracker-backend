@@ -27,6 +27,7 @@ import {
 } from '../../database.js';
 import { nanoid } from 'nanoid';
 import joi from 'joi';
+import { isLoggedIn, fetchRoles, mergePermissions, hasPermission} from '@merlin4/express-auth';
 import { validId } from '../../middleware/validId.js';
 import { validBody } from '../../middleware/validBody.js';
 
@@ -58,14 +59,8 @@ const testCaseSchema = joi.object({
 });
 router.use(express.urlencoded({ extended: false }));
 //List all bugs
-router.get('/list', async (req, res) => {
+router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res) => {
   debugBug(`hit list, with query string: ${JSON.stringify(req.query)}}`);
-  debugBug(req.auth)
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
   let { keywords, classification, maxAge, minAge, closed, sortBy, pageSize, pageNumber } = req.query;
   let sort = {creationDate: 1};
   let match = {};
@@ -148,13 +143,7 @@ router.get('/list', async (req, res) => {
   }
 });
 //List bug by id
-router.get('/:bugId', validId('bugId'), async (req, res) => {
-  debugBug(req.auth)
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.get('/:bugId', isLoggedIn(), hasPermission('canViewData'), validId('bugId'), async (req, res) => {
   const bugId = req.bugId;
   try {
     const bug = await getBugById(bugId);
@@ -172,12 +161,7 @@ router.get('/:bugId', validId('bugId'), async (req, res) => {
   }
 });
 //List comments by bug id
-router.get('/:bugId/comment/list', validId('bugId'), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.get('/:bugId/comment/list', isLoggedIn(), hasPermission('canViewData'), validId('bugId'), async (req, res) => {
   const bugId = req.bugId;
   try {
     const comments = await listComments(bugId);
@@ -194,12 +178,7 @@ router.get('/:bugId/comment/list', validId('bugId'), async (req, res) => {
   }
 });
 //List test cases by bug id
-router.get('/:bugId/test/list', validId('bugId'), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.get('/:bugId/test/list', isLoggedIn(), hasPermission('canViewData'), validId('bugId'), async (req, res) => {
   const bugId = req.bugId;
   try {
     const testCases = await listTestCases(bugId);
@@ -216,12 +195,7 @@ router.get('/:bugId/test/list', validId('bugId'), async (req, res) => {
   }
 });
 //List comment by bug id and comment id
-router.get('/:bugId/comment/:commentId', validId('bugId'), validId('commentId'), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.get('/:bugId/comment/:commentId', isLoggedIn(), hasPermission('canViewData'), validId('bugId'), validId('commentId'), async (req, res) => {
   const bugId = req.bugId;
   const commentId = req.params.commentId;
   try {
@@ -240,12 +214,7 @@ router.get('/:bugId/comment/:commentId', validId('bugId'), validId('commentId'),
   }
 });
 //List test case by bug id and test case id
-router.get('/:bugId/test/:testCaseId', validId('bugId'), validId('testCaseId'), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.get('/:bugId/test/:testCaseId', isLoggedIn(), hasPermission('canViewData'), validId('bugId'), validId('testCaseId'), async (req, res) => {
   const bugId = req.bugId;
   const testCaseId = req.params.testCaseId;
   try {
@@ -263,13 +232,8 @@ router.get('/:bugId/test/:testCaseId', validId('bugId'), validId('testCaseId'), 
   }
 });
 //Create new bug
-router.post('/new', validBody(newBugSchema), async (req, res) => {
+router.post('/new', isLoggedIn(), hasPermission('canCreateBug'), validBody(newBugSchema), async (req, res) => {
   debugBug('hit new');
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
   const newBug = req.body;
   try {
     const dbResult = await createBug(newBug, req.auth);
@@ -287,14 +251,10 @@ router.post('/new', validBody(newBugSchema), async (req, res) => {
   }
 });
 //Update existing bug
-router.put('/:bugId', validId('bugId'), validBody(updateBugSchema), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId', isLoggedIn(), hasPermission('canEditAnyBug', 'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validBody(updateBugSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const newBug = req.body;
+  //distinguish between different permissions
   try {
     const dbResult = await updateBug(bugId, newBug, req.auth);
     debugBug(dbResult);
@@ -323,12 +283,7 @@ router.put('/:bugId', validId('bugId'), validBody(updateBugSchema), async (req, 
   }
 });
 //Classify bug
-router.put('/:bugId/classify', validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug'), validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const classification = req.body;
   try {
@@ -348,12 +303,7 @@ router.put('/:bugId/classify', validId('bugId'), validBody(classifyBugSchema), a
   }
 });
 //Assign bug
-router.put('/:bugId/assign', validId('bugId'), validId('req.body.assignedToUserId'), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId/assign', isLoggedIn(), hasPermission('canReassignAnyBug'), validId('bugId'), validId('req.body.assignedToUserId'), async (req, res) => {
   const bugId = req.params.bugId;
   const assignedTo = req.body;
   debugBug(assignedTo);
@@ -376,12 +326,7 @@ router.put('/:bugId/assign', validId('bugId'), validId('req.body.assignedToUserI
   }
 });
 //Close bug
-router.put('/:bugId/close', validId('bugId'), validBody(closeBugSchema), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId/close', isLoggedIn(), hasPermission('canCloseAnyBug'), validId('bugId'), validBody(closeBugSchema), async (req, res) => {
   const bugId = req.bugId;
   const closed = req.body.closed;
   try {
@@ -401,12 +346,7 @@ router.put('/:bugId/close', validId('bugId'), validBody(closeBugSchema), async (
   }
 });
 //Add comment to bug
-router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId/comment/new', isLoggedIn(), hasPermission('canAddComments'), validId('bugId'), validBody(commentSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const comment = req.body;
   try {
@@ -427,12 +367,7 @@ router.put('/:bugId/comment/new', validId('bugId'), validBody(commentSchema), as
   }
 });
 //Add test-case to bug
-router.put('/:bugId/test/new', validId('bugId'), validBody(testCaseSchema), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId/test/new', isLoggedIn(), hasPermission('canAddTestCase'), validId('bugId'), validBody(testCaseSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const testCase = req.body;
   try {
@@ -454,12 +389,7 @@ router.put('/:bugId/test/new', validId('bugId'), validBody(testCaseSchema), asyn
   }
 });
 //Update test case
-router.put('/:bugId/test/:testId', validId('bugId'), validId('testId'), validBody(testCaseSchema), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:bugId/test/:testId', isLoggedIn(), hasPermission('canEditTestCase'), validId('bugId'), validId('testId'), validBody(testCaseSchema), async (req, res) => {
   const bugId = req.bugId;
   const testCaseId = req.testId;
   const testCase = req.body;
@@ -483,12 +413,7 @@ router.put('/:bugId/test/:testId', validId('bugId'), validId('testId'), validBod
   }
 });
 //Delete test case
-router.delete('/:bugId/test/:testId', validId('bugId'), validId('testId'), async (req, res) => {
-  if (!req.auth) {
-    debugBug(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.delete('/:bugId/test/:testId', isLoggedIn(), hasPermission('canDeleteTestCase'), validId('bugId'), validId('testId'), async (req, res) => {
   const bugId = req.bugId;
   const testId = req.testId;
   try {

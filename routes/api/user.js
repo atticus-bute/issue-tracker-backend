@@ -13,12 +13,14 @@ import {
   connect,
   recordEdit,
   recordRegister,
+  findRoleByName
 } from '../../database.js';
 import { validId } from '../../middleware/validId.js';
 import { validBody } from '../../middleware/validBody.js';
 import e from 'express';
 import joi from 'joi';
 import { ObjectId } from 'mongodb';
+import { isLoggedIn, fetchRoles, mergePermissions, hasPermission} from '@merlin4/express-auth';
 import jwt from 'jsonwebtoken';
 
 const router = express.Router();
@@ -32,7 +34,7 @@ const newUserSchema = joi.object({
   role: joi
     .array()
     .items(
-      joi.string().valid('developer', 'quality analyst', 'business analyst', 'product manager', 'technical manager')
+      joi.string().valid('Developer', 'Quality Analyst', 'Business Analyst', 'Product Manager', 'Technical Manager')
     )
     .required(),
 });
@@ -49,15 +51,18 @@ const updateUserSchema = joi.object({
   role: joi
     .array()
     .items(
-      joi.string().valid('developer', 'quality analyst', 'business analyst', 'product manager', 'technical manager')
+      joi.string().valid('Developer', 'Quality Analyst', 'Business Analyst', 'Product Manager', 'Technical Manager')
     ),
 });
 
 async function issueAuthToken(user) {
-  const payload = { _id: user._id, email: user.email, role: user.role };
+  const payload = { _id: user._id, fullName: user.fullName, email: user.email, role: user.role };
   const secret = process.env.JWT_SECRET;
   const options = { expiresIn: '1h' };
-
+  const roles = await fetchRoles(user, role => findRoleByName(role));
+  const permissions = mergePermissions(user, roles);
+  payload.permissions = permissions;
+  debugUser(payload);
   const authToken = jwt.sign(payload, secret, options);
   return authToken;
 }
@@ -66,13 +71,8 @@ function issueAuthCookie(res, authToken) {
   res.cookie('authToken', authToken, cookieOptions);
 }
 
-router.get('/list', async (req, res) => {
+router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res) => {
   //debugUser(`req.auth = ${JSON.stringify(req.auth)}`);
-  if (!req.auth) {
-    debugUser(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
   debugUser(`hit list, with query string: ${JSON.stringify(req.query)}}`);
   let { keywords, role, maxAge, minAge, sortBy, pageSize, pageNumber } = req.query;
   let sort = { givenName: 1 };
@@ -171,13 +171,8 @@ router.get('/me', async (req, res) => {
   }
 });
 
-router.get('/:userId', validId('userId'), async (req, res) => {
+router.get('/:userId', isLoggedIn(), hasPermission('canViewData'), validId('userId'), async (req, res) => {
   debugUser('Getting user by id');
-  if (!req.auth) {
-    debugUser(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
   const id = req.params.userId;
   try {
     const user = await getUserById(id);
@@ -222,7 +217,7 @@ router.post('/register', validBody(newUserSchema), async (req, res) => {
 
 router.post('/login', validBody(loginSchema), async (req, res) => {
   const loginAttempt = req.body;
-  debugUser(loginAttempt);
+  //debugUser(loginAttempt);
   try {
     //debugUser('Try block hit');
     const resultUser = await loginUser(loginAttempt);
@@ -241,11 +236,6 @@ router.post('/login', validBody(loginSchema), async (req, res) => {
   }
 });
 router.put('/me', validBody(updateUserSchema), async (req, res) => {
-  if (!req.auth) {
-    debugUser(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
   debugUser('Updating Current User');
   const updatedUser = req.body;
   if (updatedUser.password) {
@@ -289,12 +279,7 @@ router.put('/me', validBody(updateUserSchema), async (req, res) => {
     res.status(500).json({ error: `User ${id} not found` });
   }
 });
-router.put('/:userId', validId('userId'), validBody(updateUserSchema), async (req, res) => {
-  if (!req.auth) {
-    debugUser(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.put('/:userId', isLoggedIn(), hasPermission('canEditAnyUser'), validId('userId'), validBody(updateUserSchema), async (req, res) => {
   debugUser('Updating user by id');
   const id = req.params.userId;
   const updatedUser = req.body;
@@ -342,12 +327,7 @@ router.put('/:userId', validId('userId'), validBody(updateUserSchema), async (re
     res.status(500).json({ error: `User ${id} not found` });
   }
 });
-router.delete('/:userId', validId('userId'), async (req, res) => {
-  if (!req.auth) {
-    debugUser(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
+router.delete('/:userId', isLoggedIn(), hasPermission('canEditAnyUser'), validId('userId'), async (req, res) => {
   debugUser('Deleting user by id');
   const id = req.params.userId;
   try {

@@ -418,7 +418,15 @@ async function closeBug(id, status, author) {
   const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
   return result;
 }
+
+async function findRoleByName(roleName) {
+  debugDb('Finding role by name');
+  const db = await connect();
+  const role = await db.collection('Roles').findOne({name: roleName});
+  debugDb(role);
+  return role;
+}                                                             
 // export functions
-export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase, recordRegister, recordEdit };
+export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase, recordRegister, recordEdit, findRoleByName };
 
 ping();
