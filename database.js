@@ -2,8 +2,7 @@ import * as dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 dotenv.config();
 
-
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient, ObjectId } from 'mongodb';
 import debug from 'debug';
 //import { result } from 'lodash';
 const debugDb = debug('app:Database');
@@ -33,7 +32,6 @@ async function ping() {
   debugDb('Ping.');
 }
 
-// FIXME: add more functions here
 //User Functions
 async function getUsers() {
   debugDb('Getting all users');
@@ -44,44 +42,40 @@ async function getUsers() {
 async function getUserById(id) {
   debugDb('Getting user by id');
   const db = await connect();
-  const user = await db.collection('Users').findOne({_id: newId(id)});
+  const user = await db.collection('Users').findOne({ _id: newId(id)});
   if (user.password) {
-
-  return user;
+    return user;
+  }
 }
-};
 async function registerUser(newUser) {
   debugDb('Registering user');
   const db = await connect();
   let valid = true;
   let errorStr = '';
-  if(!newUser.email){
+  if (!newUser.email) {
     valid = false;
     errorStr += `Missing field: email, `;
-  } else if (await db.collection('Users').findOne({email: newUser.email})) {
+  } else if (await db.collection('Users').findOne({ email: newUser.email })) {
     valid = false;
     errorStr += `Email already registered.`;
   }
-  if(!newUser.password){
+  if (!newUser.password) {
     valid = false;
     errorStr += `Missing field: password, `;
   }
-  if(!newUser.fullName){
+  if (!newUser.fullName) {
     newUser.fullName = `${newUser.givenName} ${newUser.familyName}`;
   }
-  if(!newUser.givenName){
+  if (!newUser.givenName) {
     valid = false;
     errorStr += `Missing field: firstName, `;
   }
-  if(!newUser.familyName){
+  if (!newUser.familyName) {
     valid = false;
     errorStr += `Missing field: lastName, `;
   }
-  if(!newUser.role){
-    valid = false;
-    errorStr += `Missing field: role, `;
-  };
   if (valid) {
+    newUser.role = [];
     newUser._id = new ObjectId();
     newUser.creationDate = new Date();
     const user = await db.collection('Users').insertOne(newUser);
@@ -89,14 +83,14 @@ async function registerUser(newUser) {
   } else {
     return errorStr;
   }
-};
+}
 async function loginUser(loginAttempt) {
   debugDb('Logging in user');
   const db = await connect();
-  const user = await db.collection('Users').findOne({email: loginAttempt.email});
-  if(user) {
+  const user = await db.collection('Users').findOne({ email: loginAttempt.email });
+  if (user) {
     debugDb('User found');
-    if(await bcrypt.compare(loginAttempt.password, user.password)) {
+    if (await bcrypt.compare(loginAttempt.password, user.password)) {
       debugDb('Password correct');
       return user;
     } else {
@@ -107,11 +101,11 @@ async function loginUser(loginAttempt) {
     debugDb('User not found');
     return false;
   }
-};
+}
 async function updateUser(id, updatedUser) {
   debugDb('Updating user');
   const db = await connect();
-  const user = await db.collection('Users').findOne({_id: newId(id)});
+  const user = await db.collection('Users').findOne({ _id: newId(id) });
   if (updatedUser.password) {
     user.password = updatedUser.password;
   }
@@ -127,20 +121,20 @@ async function updateUser(id, updatedUser) {
   if (updatedUser.role) {
     user.role = updatedUser.role;
   }
-  const result = await db.collection('Users').updateOne({ _id:new ObjectId(id) }, {$set:{...updatedUser}});
+  const result = await db.collection('Users').updateOne({ _id: new ObjectId(id) }, { $set: { ...updatedUser } });
   //debugDb(user);
   return result;
-};
+}
 async function deleteUser(id) {
   debugDb('Deleting user');
   const db = await connect();
-  const user = await db.collection('Users').findOne({_id: newId(id)});
+  const user = await db.collection('Users').findOne({ _id: newId(id) });
   if (!user) {
     return false;
   }
-  const result = await db.collection('Users').deleteOne({_id: newId(id)});
+  const result = await db.collection('Users').deleteOne({ _id: newId(id) });
   return result;
-};
+}
 //Bug Functions
 async function getBugs() {
   if (!req.auth) {
@@ -156,7 +150,7 @@ async function getBugs() {
 async function getBugById(id) {
   debugDb('Getting bug by id');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
   return bug;
 }
 async function recordRegister(user, col, op) {
@@ -167,7 +161,7 @@ async function recordRegister(user, col, op) {
     col: col,
     op: op,
     target: user._id,
-    update: user
+    update: user,
   };
   const dbResult = await db.collection('Edits').insertOne(edit);
   debugDb(dbResult);
@@ -182,10 +176,9 @@ async function recordEdit(target, col, op, update, auth) {
     op: op,
     target: target._id || target,
     update: update,
-    auth: auth
+    auth: auth,
   };
   const dbResult = await db.collection('Edits').insertOne(edit);
-  debugDb(dbResult);
   return dbResult;
 }
 async function createBug(newBug, author) {
@@ -193,19 +186,19 @@ async function createBug(newBug, author) {
   const db = await connect();
   let valid = true;
   let errorStr = '';
-  if(!newBug.title){
+  if (!newBug.title) {
     valid = false;
     errorStr += `Missing field: title, `;
   }
-  if(!newBug.description){
+  if (!newBug.description) {
     valid = false;
     errorStr += `Missing field: description, `;
   }
-  if(!newBug.stepsToReproduce){
+  if (!newBug.stepsToReproduce) {
     valid = false;
     errorStr += `Missing field: stepsToReproduce, `;
   }
-  if(valid)  {
+  if (valid) {
     newBug._id = new ObjectId();
     newBug.creationDate = new Date();
     newBug.createdBy = author;
@@ -214,7 +207,7 @@ async function createBug(newBug, author) {
     newBug.testCases = [];
     newBug.classification = 'unclassified';
     newBug.closed = false;
-    debugDb(`New bug: ${JSON.stringify(newBug)}`)
+    debugDb(`New bug: ${JSON.stringify(newBug)}`);
     const bug = await db.collection('Bugs').insertOne(newBug);
 
     return bug;
@@ -225,7 +218,7 @@ async function createBug(newBug, author) {
 async function updateBug(id, updatedBug, author) {
   debugDb('Updating bug');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
   if (!bug) {
     return false;
   }
@@ -240,13 +233,13 @@ async function updateBug(id, updatedBug, author) {
   }
   bug.lastUpdatedOn = new Date();
   bug.lastUpdatedBy = author;
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
   return result;
 }
 async function classifyBug(id, classification, author) {
   debugDb('Classifying bug');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
   if (!bug) {
     return false;
   }
@@ -258,14 +251,14 @@ async function classifyBug(id, classification, author) {
   } else {
     return false;
   }
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
   return result;
 }
 async function assignBug(id, assignedToUserId, author) {
   debugDb('Assigning bug');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
-  const assignedUser = await db.collection('Users').findOne({_id: newId(assignedToUserId)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
+  const assignedUser = await db.collection('Users').findOne({ _id: newId(assignedToUserId) });
   //debugDb(bug);
   if (!bug || !assignedUser) {
     return false;
@@ -277,7 +270,7 @@ async function assignBug(id, assignedToUserId, author) {
     bug.assignedOn = new Date();
     bug.assignedBy = author;
     bug.lastUpdated = new Date();
-    const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+    const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
     debugDb(result);
     return result;
   } else {
@@ -287,12 +280,12 @@ async function assignBug(id, assignedToUserId, author) {
 async function addComment(id, comment, author) {
   debugDb('Adding comment');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
   if (!bug) {
     return false;
   }
   if (comment && author) {
-    debugDb(`${comment}, ${author}`)
+    debugDb(`${comment}, ${author}`);
     let newComment = {};
     newComment._id = new ObjectId();
     newComment.comment = comment;
@@ -303,24 +296,24 @@ async function addComment(id, comment, author) {
     return false;
   }
   debugDb('Result next');
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
   return result;
 }
 async function listComments(id) {
   debugDb('Getting comments');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
-  debugDb`The comments are: ${bug.comments}`
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
+  debugDb`The comments are: ${bug.comments}`;
   return bug.comments;
 }
 async function getComment(bugId, commentId) {
   debugDb('Getting comment');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(bugId) });
   if (!bug) {
     return false;
   }
-  const comment = bug.comments.find(comment => comment._id == commentId);
+  const comment = bug.comments.find((comment) => comment._id == commentId);
   if (!comment) {
     return false;
   }
@@ -329,7 +322,7 @@ async function getComment(bugId, commentId) {
 async function listTestCases(bugId) {
   debugDb('Getting test cases');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(bugId) });
   debugDb(bug);
   if (!bug) {
     return false;
@@ -341,11 +334,11 @@ async function listTestCases(bugId) {
 async function getTestCase(bugId, testCaseId) {
   debugDb('Getting test case');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(bugId) });
   if (!bug) {
     return false;
   }
-  const testCase = bug.testCases.find(testCase => testCase._id == testCaseId);
+  const testCase = bug.testCases.find((testCase) => testCase._id == testCaseId);
   debugDb(testCase);
   if (!testCase) {
     return false;
@@ -355,7 +348,7 @@ async function getTestCase(bugId, testCaseId) {
 async function newTestCase(bugId, testCase, author) {
   debugDb('Creating test case');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(bugId) });
   if (!bug) {
     return false;
   }
@@ -371,7 +364,7 @@ async function newTestCase(bugId, testCase, author) {
   } else {
     return false;
   }
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(bugId) }, {$set:{...bug}});
+  const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(bugId) }, { $set: { ...bug } });
   return result;
 }
 async function updateTestCase(bugId, testCaseId, updatedTestCase, author) {
@@ -380,29 +373,30 @@ async function updateTestCase(bugId, testCaseId, updatedTestCase, author) {
   updatedTestCase._id = new ObjectId();
   updatedTestCase.lastUpdatedOn = new Date();
   updatedTestCase.lastUpdatedBy = author;
-  const dbResult = await db.collection('Bugs').updateOne(
-    {_id:{$eq:bugId}, 'testCases._id': {$eq:testCaseId}},
-    {$set: {'testCases.$': updatedTestCase }}
-  );
+  const dbResult = await db
+    .collection('Bugs')
+    .updateOne(
+      { _id: { $eq: bugId }, 'testCases._id': { $eq: testCaseId } },
+      { $set: { 'testCases.$': updatedTestCase } }
+    );
   debugDb(dbResult);
   return dbResult;
 }
 async function deleteTestCase(bugId, testCaseId) {
   debugDb('Deleting test case');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(bugId)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(bugId) });
   let foundTestCase = false;
-  const result = await db.collection('Bugs').updateOne(
-    {_id:{$eq:bugId}},
-    {$pull: {testCases: {_id: {$eq:testCaseId}}}}
-  );
+  const result = await db
+    .collection('Bugs')
+    .updateOne({ _id: { $eq: bugId } }, { $pull: { testCases: { _id: { $eq: testCaseId } } } });
   debugDb(bug.testCases);
   return result;
 }
 async function closeBug(id, status, author) {
   debugDb('Closing bug');
   const db = await connect();
-  const bug = await db.collection('Bugs').findOne({_id: newId(id)});
+  const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
   debugDb(bug);
   if (!bug) {
     return false;
@@ -415,18 +409,46 @@ async function closeBug(id, status, author) {
   } else {
     return false;
   }
-  const result = await db.collection('Bugs').updateOne({ _id:new ObjectId(id) }, {$set:{...bug}});
+  const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
   return result;
 }
 
 async function findRoleByName(roleName) {
   debugDb('Finding role by name');
   const db = await connect();
-  const role = await db.collection('Roles').findOne({name: roleName});
+  const role = await db.collection('Roles').findOne({ name: roleName });
   debugDb(role);
   return role;
-}                                                             
+}
 // export functions
-export { connect, ping, newId, getUsers, getUserById, registerUser, loginUser, updateUser, deleteUser, getBugs, getBugById, createBug, updateBug, classifyBug, assignBug, closeBug, addComment, listComments, getComment, listTestCases, getTestCase, newTestCase, updateTestCase, deleteTestCase, recordRegister, recordEdit, findRoleByName };
+export {
+  connect,
+  ping,
+  newId,
+  getUsers,
+  getUserById,
+  registerUser,
+  loginUser,
+  updateUser,
+  deleteUser,
+  getBugs,
+  getBugById,
+  createBug,
+  updateBug,
+  classifyBug,
+  assignBug,
+  closeBug,
+  addComment,
+  listComments,
+  getComment,
+  listTestCases,
+  getTestCase,
+  newTestCase,
+  updateTestCase,
+  deleteTestCase,
+  recordRegister,
+  recordEdit,
+  findRoleByName,
+};
 
 ping();

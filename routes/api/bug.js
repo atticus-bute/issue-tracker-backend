@@ -254,10 +254,27 @@ router.post('/new', isLoggedIn(), hasPermission('canCreateBug'), validBody(newBu
 router.put('/:bugId', isLoggedIn(), hasPermission('canEditAnyBug', 'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validBody(updateBugSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const newBug = req.body;
-  //distinguish between different permissions
+  let canEdit = false;
+  if (req.auth.permissions.canEditAnyBug) {
+    debugBug('User can edit any bug');
+    canEdit = true;
+  }
   try {
+    if ( canEdit == false ) {
+      const currentBug = await getBugById(bugId);
+      const currentUser = req.auth;
+      if (currentBug.assignedToUserId && currentBug.assignedToUserId == currentUser._id) {
+        debugBug('User can edit bug if assigned to');
+        canEdit = true;
+      } else if (currentBug.createdBy._id == currentUser._id) {
+        debugBug('User can edit own bug');
+        canEdit = true;
+      }
+    }
+    if (canEdit == false) {
+      res.status(403).json({ message: 'You do not have permission to edit this bug' });
+    }
     const dbResult = await updateBug(bugId, newBug, req.auth);
-    debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       let editLog = '';
       if (req.body.title) {

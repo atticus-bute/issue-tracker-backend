@@ -30,13 +30,7 @@ const newUserSchema = joi.object({
   givenName: joi.string().min(1).required(),
   familyName: joi.string().min(1).required(),
   email: joi.string().email().required(),
-  password: joi.string().required(),
-  role: joi
-    .array()
-    .items(
-      joi.string().valid('Developer', 'Quality Analyst', 'Business Analyst', 'Product Manager', 'Technical Manager')
-    )
-    .required(),
+  password: joi.string().required()
 });
 const loginSchema = joi.object({
   email: joi.string().email().required(),
@@ -48,11 +42,10 @@ const updateUserSchema = joi.object({
   fullName: joi.string().min(1),
   email: joi.string().email(),
   password: joi.string(),
-  role: joi
-    .array()
-    .items(
-      joi.string().valid('Developer', 'Quality Analyst', 'Business Analyst', 'Product Manager', 'Technical Manager')
-    ),
+  role: joi.alternatives().try(
+    joi.array().items(joi.string().trim().valid('Developer', 'Quality Analyst', 'Business Analyst', 'Product Manager', 'Technical Manager')),
+    joi.string().trim().valid('Developer', 'Quality Analyst', 'Business Analyst', 'Product Manager', 'Technical Manager')
+  ),
 });
 
 async function issueAuthToken(user) {
@@ -235,7 +228,7 @@ router.post('/login', validBody(loginSchema), async (req, res) => {
     res.status(500).json({ error: err });
   }
 });
-router.put('/me', validBody(updateUserSchema), async (req, res) => {
+router.put('/me', isLoggedIn(), validBody(updateUserSchema), async (req, res) => {
   debugUser('Updating Current User');
   const updatedUser = req.body;
   if (updatedUser.password) {
@@ -261,9 +254,6 @@ router.put('/me', validBody(updateUserSchema), async (req, res) => {
       }
       if (req.body.familyName) {
         editLog += `Family name = ${req.body.familyName}. `;
-      }
-      if (req.body.role) {
-        editLog += `Role = ${req.body.role}. `;
       }
       const editResult = await recordEdit(newUser, 'Users', 'update', editLog, req.auth);
       const authToken = await issueAuthToken(newUser);
