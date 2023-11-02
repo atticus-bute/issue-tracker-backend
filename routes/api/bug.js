@@ -73,8 +73,8 @@ router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res)
   pastMaximumDaysOld.setDate(pastMaximumDaysOld.getDate() - maxAge); // Set pastMaximumDaysOld to today minus maxAge
   const pastMinimumDaysOld = new Date(today);
   pastMinimumDaysOld.setDate(pastMinimumDaysOld.getDate() - minAge); // Set pastMinimumDaysOld to today minus minAge
-  debugBug(`pastMaximumDaysOld: ${pastMaximumDaysOld}`);
-  debugBug(`pastMinimumDaysOld: ${pastMinimumDaysOld}`);
+  // debugBug(`pastMaximumDaysOld: ${pastMaximumDaysOld}`);
+  // debugBug(`pastMinimumDaysOld: ${pastMinimumDaysOld}`);
   try {
     if (keywords) {
       match.$text = { $search: keywords };
@@ -300,10 +300,30 @@ router.put('/:bugId', isLoggedIn(), hasPermission('canEditAnyBug', 'canEditIfAss
   }
 });
 //Classify bug
-router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug'), validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
+router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug',  'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const classification = req.body;
+  let canEdit = false;
+  if (req.auth.permissions.canClassifyAnyBug) {
+    debugBug('User can edit any bug');
+    canEdit = true;
+  }
   try {
+    if ( canEdit == false ) {
+      const currentBug = await getBugById(bugId);
+      const currentUser = req.auth;
+      if (currentBug.assignedToUserId && currentBug.assignedToUserId == currentUser._id) {
+        debugBug('User can edit bug if assigned to');
+        canEdit = true;
+      } else if (currentBug.createdBy._id == currentUser._id) {
+        debugBug('User can edit own bug');
+        canEdit = true;
+      }
+    }
+    if (canEdit == false) {
+      debugBug('canEdit = false');
+      res.status(403).json({ message: 'You do not have permission to edit this bug' });
+    }
     const dbResult = await classifyBug(bugId, classification, req.auth);
     if (dbResult.acknowledged == true) {
       debugBug('Bug classified');
@@ -320,13 +340,31 @@ router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug'),
   }
 });
 //Assign bug
-router.put('/:bugId/assign', isLoggedIn(), hasPermission('canReassignAnyBug'), validId('bugId'), validId('req.body.assignedToUserId'), async (req, res) => {
+router.put('/:bugId/assign', isLoggedIn(), hasPermission('canReassignAnyBug', 'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validId('req.body.assignedToUserId'), async (req, res) => {
   const bugId = req.params.bugId;
   const assignedTo = req.body;
-  debugBug(assignedTo);
+  let canEdit = false;
+  if (req.auth.permissions.canClassifyAnyBug) {
+    debugBug('User can edit any bug');
+    canEdit = true;
+  }
   try {
+    if ( canEdit == false ) {
+      const currentBug = await getBugById(bugId);
+      const currentUser = req.auth;
+      if (currentBug.assignedToUserId && currentBug.assignedToUserId == currentUser._id) {
+        debugBug('User can edit bug if assigned to');
+        canEdit = true;
+      } else if (currentBug.createdBy._id == currentUser._id) {
+        debugBug('User can edit own bug');
+        canEdit = true;
+      }
+    }
+    if (canEdit == false) {
+      debugBug('canEdit = false');
+      res.status(403).json({ message: 'You do not have permission to edit this bug' });
+    }
     const dbResult = await assignBug(bugId, assignedTo.assignedToUserId, req.auth);
-    debugBug(dbResult);
     if (dbResult.acknowledged == true) {
       debugBug('Bug assigned');
       const updatedBug = await getBugById(bugId);

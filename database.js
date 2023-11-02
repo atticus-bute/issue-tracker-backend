@@ -271,7 +271,6 @@ async function assignBug(id, assignedToUserId, author) {
     bug.assignedBy = author;
     bug.lastUpdated = new Date();
     const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
-    debugDb(result);
     return result;
   } else {
     return false;
