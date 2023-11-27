@@ -65,7 +65,6 @@ function issueAuthCookie(res, authToken) {
 }
 
 router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res) => {
-  //debugUser(`req.auth = ${JSON.stringify(req.auth)}`);
   debugUser(`hit list, with query string: ${JSON.stringify(req.query)}}`);
   let { keywords, role, maxAge, minAge, sortBy, pageSize, pageNumber } = req.query;
   let sort = { givenName: 1 };
@@ -122,15 +121,10 @@ router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res)
     const skip = (pageNumber - 1) * pageSize;
     const limit = pageSize;
 
-    // debugUser(`match: ${JSON.stringify(match)}`);
-
     const pipeline = [{ $match: match }, { $sort: sort }, { $skip: skip }, { $limit: limit }];
-    // debugUser(`pipeline: ${JSON.stringify(pipeline)}`);
 
     const db = await connect();
-    // debugUser('Connected to database');
     const cursor = await db.collection('Users').aggregate(pipeline);
-    // debugUser('Got cursor');
     const users = await cursor.toArray();
     res.status(200).json(users);
   } catch (err) {
@@ -186,6 +180,7 @@ router.post('/register', validBody(newUserSchema), async (req, res) => {
   const newUser = {
     _id: newId(),
     ...req.body,
+    fullName: `${req.body.givenName} ${req.body.familyName}`,
     creationDate: new Date(),
   };
   newUser.password = await bcrypt.hash(newUser.password, 10);
@@ -197,28 +192,25 @@ router.post('/register', validBody(newUserSchema), async (req, res) => {
       const editResult = await recordRegister(newUser, 'Users', 'insert');
       issueAuthCookie(res, await issueAuthToken(newUser));
       debugUser(`User ${newUser._id} added.`);
-      res.status(200).json({ message: `User ${newUser._id} was added.` });
+      res.status(200).json({ message: `User ${newUser._id} was added.`, user: newUser });
     } else {
       debugUser(dbResult);
-      res.status(400).json({ message: `User ${newUser._id} was not added` });
+      res.status(400).json({ message: `User ${newUser._id} was not added`});
     }
   } catch (err) {
     debugUser('.post failed');
     res.status(500).json({ error: err });
   }
 });
-
 router.post('/login', validBody(loginSchema), async (req, res) => {
   const loginAttempt = req.body;
-  //debugUser(loginAttempt);
   try {
-    //debugUser('Try block hit');
     const resultUser = await loginUser(loginAttempt);
     if (resultUser && (await bcrypt.compare(loginAttempt.password, resultUser.password))) {
       const authToken = await issueAuthToken(resultUser);
       issueAuthCookie(res, authToken);
       debugUser(`User ${resultUser.fullName} logged in`);
-      res.status(200).json({ message: `Welcome ${resultUser.fullName}! Your auth token is ${authToken}` });
+      res.status(200).json({ message: `Welcome ${resultUser.fullName}!`, authToken: authToken, user: resultUser });
     } else {
       debugUser(resultUser);
       res.status(400).json({ message: 'Invalid email or password' });
@@ -228,6 +220,10 @@ router.post('/login', validBody(loginSchema), async (req, res) => {
     res.status(500).json({ error: err });
   }
 });
+router.post('/logout', isLoggedIn(), async (req, res) => {
+  res.clearCookie('authToken');
+  res.status(200).json({ message: 'User logged out' });
+});2
 router.put('/me', isLoggedIn(), validBody(updateUserSchema), async (req, res) => {
   debugUser('Updating Current User');
   const updatedUser = req.body;

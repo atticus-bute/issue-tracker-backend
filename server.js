@@ -11,11 +11,13 @@ import { bugRouter } from './routes/api/bug.js';
 import { ping, connect, newId } from './database.js';
 import cookieParser from 'cookie-parser';
 import { authMiddleware } from '@merlin4/express-auth';
+import cors from 'cors';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 //create our web server
 const app = express();
 app.use(express.urlencoded({ extended: true }));
+app.use(cors({origin: 'http://localhost:5173', credentials: true}));
 app.use(cookieParser());
 app.use(
   authMiddleware(process.env.JWT_SECRET, 'authToken', {
@@ -23,9 +25,11 @@ app.use(
     maxAge: 1000 * 60 * 60
   })
 );
+app.use(express.json());
 app.use('/api/users', userRouter);
 app.use('/api/bugs', bugRouter);
 app.use(express.static('public'));
+
 
 //register routes
 app.get('/', (req, res) => {
