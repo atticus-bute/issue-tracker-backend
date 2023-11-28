@@ -45,7 +45,7 @@ const classifyBugSchema = joi.object({
   classification: joi
     .string()
     .min(1)
-    .valid('Syntax Error', 'Logic Error', 'Runtime Error', 'Semantic Error')
+    .valid('unclassified', 'approved', 'unapproved', 'duplicate')
     .required(),
 });
 const closeBugSchema = joi.object({
