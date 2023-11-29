@@ -39,7 +39,8 @@ const newBugSchema = joi.object({
 const updateBugSchema = joi.object({
   title: joi.string().min(1),
   description: joi.string().min(1),
-  stepsToReproduce: joi.string().min(1)
+  stepsToReproduce: joi.string().min(1),
+  
 });
 const classifyBugSchema = joi.object({
   classification: joi
