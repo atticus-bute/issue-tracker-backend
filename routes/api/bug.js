@@ -27,7 +27,7 @@ import {
 } from '../../database.js';
 import { nanoid } from 'nanoid';
 import joi from 'joi';
-import { isLoggedIn, fetchRoles, mergePermissions, hasPermission} from '@merlin4/express-auth';
+import { isLoggedIn, fetchRoles, mergePermissions, hasPermission } from '@merlin4/express-auth';
 import { validId } from '../../middleware/validId.js';
 import { validBody } from '../../middleware/validBody.js';
 
@@ -40,7 +40,7 @@ const updateBugSchema = joi.object({
   title: joi.string().min(1),
   description: joi.string().min(1),
   stepsToReproduce: joi.string().min(1),
-  
+
 });
 const classifyBugSchema = joi.object({
   classification: joi
@@ -60,22 +60,25 @@ const testCaseSchema = joi.object({
 });
 router.use(express.urlencoded({ extended: false }));
 //List all bugs
-router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res) => {
+router.get('/list', isLoggedIn(), async (req, res) => {
   debugBug(`hit list, with query string: ${JSON.stringify(req.query)}}`);
-  let { keywords, classification, maxAge, minAge, closed, sortBy, pageSize, pageNumber } = req.query;
-  let sort = {creationDate: 1};
+  let { keywords, classification, maxAge, minAge, closed, sortBy } = req.query;
+  if (closed == "false") {
+    closed = false;
+  } else if (closed == "true") {
+    closed = true;
+  }
+  let sort = { creationDate: 1 };
   let match = {};
-  const today = new Date(); // Get current date and time
+  const today = new Date();
   today.setHours(0);
   today.setMinutes(0);
   today.setSeconds(0);
-  today.setMilliseconds(0); // Remove time from Date
+  today.setMilliseconds(0);
   const pastMaximumDaysOld = new Date(today);
-  pastMaximumDaysOld.setDate(pastMaximumDaysOld.getDate() - maxAge); // Set pastMaximumDaysOld to today minus maxAge
+  pastMaximumDaysOld.setDate(pastMaximumDaysOld.getDate() - maxAge);
   const pastMinimumDaysOld = new Date(today);
-  pastMinimumDaysOld.setDate(pastMinimumDaysOld.getDate() - minAge); // Set pastMinimumDaysOld to today minus minAge
-  // debugBug(`pastMaximumDaysOld: ${pastMaximumDaysOld}`);
-  // debugBug(`pastMinimumDaysOld: ${pastMinimumDaysOld}`);
+  pastMinimumDaysOld.setDate(pastMinimumDaysOld.getDate() - minAge);
   try {
     if (keywords) {
       match.$text = { $search: keywords };
@@ -97,43 +100,41 @@ router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res)
       match.creationDate = { $gte: pastMaximumDaysOld };
     }
 
-    switch(sortBy) {
-      case 'newest':
-        sort = {creationDate: -1};
-        break;
-      case 'oldest':
-        sort = {creationDate: 1};
-        break;
-      case 'title':
-        sort = {title: 1, creationDate: -1};
-        break;
-      case 'classification':
-        sort = {classification: 1, creationDate: -1};
-        break;
-      case 'assignedTo':
-        sort = {assignedTo: 1, creationDate: -1};
-        break;
-      case 'createdBy':
-        sort = {createdBy: 1, creationDate: -1};
-        break;
-      default:
-        sort = {creationDate: -1};
-        break;
+    if (!req.auth.permissions.canViewData) {
+      match['createdBy._id'] = req.auth._id;
     }
 
-    pageNumber = parseInt(pageNumber) || 1;
-    pageSize = parseInt(pageSize) || 10;
-    const skip = (pageNumber - 1) * pageSize;
-    const limit = pageSize;
+    switch (sortBy) {
+      case 'newest':
+        sort = { creationDate: -1 };
+        break;
+      case 'oldest':
+        sort = { creationDate: 1 };
+        break;
+      case 'title':
+        sort = { title: 1, creationDate: -1 };
+        break;
+      case 'classification':
+        sort = { classification: 1, creationDate: -1 };
+        break;
+      case 'assignedTo':
+        sort = { assignedTo: 1, creationDate: -1 };
+        break;
+      case 'createdBy':
+        sort = { createdBy: 1, creationDate: -1 };
+        break;
+      default:
+        sort = { creationDate: -1 };
+        break;
+    }
 
     debugBug(`match: ${JSON.stringify(match)}`);
 
     const pipeline = [
       { $match: match },
-      { $sort: sort },
-      { $skip: skip },
-      { $limit: limit }
+      { $sort: sort }
     ];
+
     const db = await connect();
     const cursor = await db.collection('Bugs').aggregate(pipeline);
     const bugs = await cursor.toArray();
@@ -144,7 +145,7 @@ router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res)
   }
 });
 //List bug by id
-router.get('/:bugId', isLoggedIn(), hasPermission('canViewData'), validId('bugId'), async (req, res) => {
+router.get('/:bugId', isLoggedIn(), validId('bugId'), async (req, res) => {
   const bugId = req.bugId;
   try {
     const bug = await getBugById(bugId);
@@ -233,7 +234,7 @@ router.get('/:bugId/test/:testCaseId', isLoggedIn(), hasPermission('canViewData'
   }
 });
 //Create new bug
-router.post('/new', isLoggedIn(), hasPermission('canCreateBug'), validBody(newBugSchema), async (req, res) => {
+router.post('/new', isLoggedIn(), validBody(newBugSchema), async (req, res) => {
   debugBug('hit new');
   const newBug = req.body;
   try {
@@ -252,7 +253,7 @@ router.post('/new', isLoggedIn(), hasPermission('canCreateBug'), validBody(newBu
   }
 });
 //Update existing bug
-router.put('/:bugId', isLoggedIn(), hasPermission('canEditAnyBug', 'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validBody(updateBugSchema), async (req, res) => {
+router.put('/:bugId', isLoggedIn(), validId('bugId'), validBody(updateBugSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const newBug = req.body;
   let canEdit = false;
@@ -261,7 +262,7 @@ router.put('/:bugId', isLoggedIn(), hasPermission('canEditAnyBug', 'canEditIfAss
     canEdit = true;
   }
   try {
-    if ( canEdit == false ) {
+    if (canEdit == false) {
       const currentBug = await getBugById(bugId);
       const currentUser = req.auth;
       if (currentBug.assignedToUserId && currentBug.assignedToUserId == currentUser._id) {
@@ -301,7 +302,7 @@ router.put('/:bugId', isLoggedIn(), hasPermission('canEditAnyBug', 'canEditIfAss
   }
 });
 //Classify bug
-router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug',  'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
+router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug', 'canEditIfAssignedTo', 'canEditMyBug'), validId('bugId'), validBody(classifyBugSchema), async (req, res) => {
   const bugId = req.params.bugId;
   const classification = req.body;
   let canEdit = false;
@@ -310,7 +311,7 @@ router.put('/:bugId/classify', isLoggedIn(), hasPermission('canClassifyAnyBug', 
     canEdit = true;
   }
   try {
-    if ( canEdit == false ) {
+    if (canEdit == false) {
       const currentBug = await getBugById(bugId);
       const currentUser = req.auth;
       if (currentBug.assignedToUserId && currentBug.assignedToUserId == currentUser._id) {
@@ -350,7 +351,7 @@ router.put('/:bugId/assign', isLoggedIn(), hasPermission('canReassignAnyBug', 'c
     canEdit = true;
   }
   try {
-    if ( canEdit == false ) {
+    if (canEdit == false) {
       const currentBug = await getBugById(bugId);
       const currentUser = req.auth;
       if (currentBug.assignedToUserId && currentBug.assignedToUserId == currentUser._id) {

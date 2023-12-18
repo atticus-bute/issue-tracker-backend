@@ -60,26 +60,24 @@ async function issueAuthToken(user) {
   return authToken;
 }
 function issueAuthCookie(res, authToken) {
-  const cookieOptions = { httpOnly: true, maxAge: 1000 * 60 * 60 };
+  const cookieOptions = { httpOnly: true, maxAge: 1000 * 60 * 60, sameSite:'none', secure:true };
   res.cookie('authToken', authToken, cookieOptions);
 }
 
 router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res) => {
   debugUser(`hit list, with query string: ${JSON.stringify(req.query)}}`);
-  let { keywords, role, maxAge, minAge, sortBy, pageSize, pageNumber } = req.query;
+  let { keywords, role, maxAge, minAge, sortBy } = req.query;
   let sort = { givenName: 1 };
   let match = {};
-  const today = new Date(); // Get current date and time
+  const today = new Date();
   today.setHours(0);
   today.setMinutes(0);
   today.setSeconds(0);
-  today.setMilliseconds(0); // Remove time from Date
+  today.setMilliseconds(0);
   const pastMaximumDaysOld = new Date(today);
-  pastMaximumDaysOld.setDate(pastMaximumDaysOld.getDate() - maxAge); // Set pastMaximumDaysOld to today minus maxAge
+  pastMaximumDaysOld.setDate(pastMaximumDaysOld.getDate() - maxAge);
   const pastMinimumDaysOld = new Date(today);
-  pastMinimumDaysOld.setDate(pastMinimumDaysOld.getDate() - minAge); // Set pastMinimumDaysOld to today minus minAge
-  // debugUser(`pastMaximumDaysOld: ${pastMaximumDaysOld}`);
-  // debugUser(`pastMinimumDaysOld: ${pastMinimumDaysOld}`);
+  pastMinimumDaysOld.setDate(pastMinimumDaysOld.getDate() - minAge);
 
   try {
     if (keywords) {
@@ -116,12 +114,7 @@ router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res)
         break;
     }
 
-    pageNumber = parseInt(pageNumber) || 1;
-    pageSize = parseInt(pageSize) || 10;
-    const skip = (pageNumber - 1) * pageSize;
-    const limit = pageSize;
-
-    const pipeline = [{ $match: match }, { $sort: sort }, { $skip: skip }, { $limit: limit }];
+    const pipeline = [{ $match: match }, { $sort: sort }];
 
     const db = await connect();
     const cursor = await db.collection('Users').aggregate(pipeline);
@@ -132,7 +125,6 @@ router.get('/list', isLoggedIn(), hasPermission('canViewData'), async (req, res)
     res.status(500).json({ error: err });
   }
 });
-
 router.get('/me', async (req, res) => {
   debugUser('Getting Current User');
   try {
@@ -157,7 +149,6 @@ router.get('/me', async (req, res) => {
     res.status(500).json({ error: err });
   }
 });
-
 router.get('/:userId', isLoggedIn(), hasPermission('canViewData'), validId('userId'), async (req, res) => {
   debugUser('Getting user by id');
   const id = req.params.userId;
@@ -175,7 +166,6 @@ router.get('/:userId', isLoggedIn(), hasPermission('canViewData'), validId('user
     res.status(500).json({ error: 'Invalid ID' });
   }
 });
-
 router.post('/register', validBody(newUserSchema), async (req, res) => {
   const newUser = {
     _id: newId(),

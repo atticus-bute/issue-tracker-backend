@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 //create our web server
 const app = express();
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({origin: 'http://localhost:5173', credentials: true}));
+app.use(cors({origin: ['http://localhost:5173', 'https://bute-issuetracker-frontend.uc.r.appspot.com'], credentials: true}));
 app.use(cookieParser());
 app.use(
   authMiddleware(process.env.JWT_SECRET, 'authToken', {

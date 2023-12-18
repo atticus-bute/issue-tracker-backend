@@ -33,7 +33,7 @@ async function ping() {
 }
 
 //User Functions
-async function getUsers() {
+async function getUsers(pipeline) {
   debugDb('Getting all users');
   const db = await connect();
   const users = await db.collection('Users').find({}).toArray();
@@ -42,7 +42,7 @@ async function getUsers() {
 async function getUserById(id) {
   debugDb('Getting user by id');
   const db = await connect();
-  const user = await db.collection('Users').findOne({ _id: newId(id)});
+  const user = await db.collection('Users').findOne({ _id: newId(id) });
   if (user.password) {
     return user;
   }
@@ -136,16 +136,20 @@ async function deleteUser(id) {
   return result;
 }
 //Bug Functions
-async function getBugs() {
-  if (!req.auth) {
-    debugUser(req.auth);
-    res.status(401).json({ error: 'Not authorized' });
-    return;
-  }
-  debugDb('Getting all bugs');
+async function getBugs(auth, pipeline) {
+  debugDb(pipeline);
   const db = await connect();
-  const bugs = await db.collection('Bugs').find({}).toArray();
-  return bugs;
+  let result;
+  if (!auth.role.length) {
+    debugDb('User has no permissions, returning only their bugs');
+    result = await db.collection('Bugs').find({ 'createdBy._id': auth._id }).toArray();
+  } else {
+    debugDb('User has permissions, returning all bugs');
+    const cursor = await db.collection('Bugs').aggregate(pipeline);
+    result = await cursor.toArray();
+  }
+  debugDb(result);
+  return result;
 }
 async function getBugById(id) {
   debugDb('Getting bug by id');
@@ -216,7 +220,6 @@ async function createBug(newBug, author) {
   }
 }
 async function updateBug(id, updatedBug, author) {
-  debugDb('Updating bug');
   const db = await connect();
   const bug = await db.collection('Bugs').findOne({ _id: newId(id) });
   if (!bug) {
@@ -411,7 +414,6 @@ async function closeBug(id, status, author) {
   const result = await db.collection('Bugs').updateOne({ _id: new ObjectId(id) }, { $set: { ...bug } });
   return result;
 }
-
 async function findRoleByName(roleName) {
   debugDb('Finding role by name');
   const db = await connect();
@@ -449,5 +451,3 @@ export {
   recordEdit,
   findRoleByName,
 };
-
-ping();
