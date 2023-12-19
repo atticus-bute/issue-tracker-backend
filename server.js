@@ -16,8 +16,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 //create our web server
 const app = express();
-app.use(express.urlencoded({ extended: true }));
-app.use(cors({origin: ['http://localhost:5173', 'https://bute-issuetracker-frontend.uc.r.appspot.com'], credentials: true}));
+app.use(express.static('public'));
+app.use(express.json());
+app.use(cors(
+  {
+    origin: ['http://localhost:5173', 'https://bute-issuetracker-frontend.uc.r.appspot.com'],
+    credentials: true
+  }
+));
 app.use(cookieParser());
 app.use(
   authMiddleware(process.env.JWT_SECRET, 'authToken', {
@@ -25,10 +31,9 @@ app.use(
     maxAge: 1000 * 60 * 60
   })
 );
-app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use('/api/users', userRouter);
 app.use('/api/bugs', bugRouter);
-app.use(express.static('public'));
 
 
 //register routes
